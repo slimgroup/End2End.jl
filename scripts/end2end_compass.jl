@@ -192,7 +192,7 @@ function obj(logK)
 end
 
 # ADAM-W algorithm
-learning_rate = 1.0
+learning_rate = 1e-2
 nssample = 4
 opt = Flux.Optimise.ADAMW(learning_rate, (0.9, 0.999), 1e-4)
 
