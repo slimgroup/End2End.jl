@@ -1,4 +1,4 @@
-export VtoK, downsample, Patchy
+export VtoK, downsample, Patchy, jitter
 
 function VtoK(v::Matrix{T}, d::Tuple{T, T}; α::T=T(20)) where T
 
@@ -65,4 +65,9 @@ function Patchy(sw::Vector{Matrix{T}}, vp::Matrix{T}, rho::Matrix{T}, phi::Matri
 
     stack = [Patchy(sw[i], vp, rho, phi; bulk_min=bulk_min, bulk_fl1=bulk_fl1, bulk_fl2=bulk_fl2, ρw = ρw, ρo=ρo) for i = 1:size(sw,1)]
     return [stack[i][1] for i = 1:size(sw,1)], [stack[i][2] for i = 1:size(sw,1)]
+end
+
+function jitter(nsrc::Int, nssample::Int)
+    npatch = Int(nsrc/nssample)
+    return rand(1:npatch, nssample) .+ convert(Vector{Int},0:npatch:(nsrc-1))
 end

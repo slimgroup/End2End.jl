@@ -12,6 +12,8 @@ using LineSearches
 using JLD2
 using JUDI
 using Statistics
+using Random
+Random.seed!(2023)
 
 include(srcdir("dummy_src_file.jl"))
 
@@ -184,39 +186,53 @@ y_init = box_co2(O(S(T(logK_init), f)))
 # objective function for inversion
 function obj(logK)
     c = box_co2(O(S(T(logK), f))); v = R(pad(c)); v_up = box_v(v); dpred = F(v_up);
-    fval = .5f0 * norm(dpred-d_obs)^2f0
+    fval = .5f0 * norm(dpred-d_obs)^2f0/nsrc/nv
     @show fval
     return fval
 end
 
+# ADAM-W algorithm
+learning_rate = 1.0
+nssample = 4
+opt = Flux.Optimise.ADAMW(learning_rate, (0.9, 0.999), 1e-4)
+
 for j=1:niterations
 
     Base.flush(Base.stdout)
-    ## AD by Flux
-    @time fval, gs = Flux.withgradient(() -> obj(logK0), Flux.params(logK0))
-    g = gs[logK0]
-    fhistory[j] = fval
-    p = -g/norm(g, Inf)
-    
-    println("Inversion iteration no: ",j,"; function value: ", fhistory[j])
 
-    # linesearch
-    function f_(α)
-        misfit = obj(box_logK(logK0 .+ α .* p))
-        @show α, misfit
-        return misfit
+    ### subsample sources
+    rand_ns = [jitter(nsrc, nssample) for i = 1:nv]                             # select random source idx for each vintage
+    q_sub = [q[rand_ns[i]] for i = 1:nv]                                        # set-up source
+    F_sub = [Fs[i][rand_ns[i]] for i = 1:nv]                                 # set-up wave modeling operator
+    dobs = [d_obs[i][rand_ns[i]] for i = 1:nv]                                  # subsampled seismic dataset from the selected sources
+    function F(v::Vector{Matrix{Float32}})
+        m = [vec(1f0./v[i]).^2f0 for i = 1:nv]
+        return [F_sub[i](m[i], q_sub[i]) for i = 1:nv]
     end
 
-    step, fval = ls(f_, 1e-1, fhistory[j], dot(g, p))
+    # objective function for inversion
+    function obj(logK)
+        c = box_co2(O(S(T(box_logK(logK)), f))); v = R(pad(c)); v_up = box_v(v); dpred = F(v_up);
+        fval = .5f0 * norm(dpred-dobs)^2f0/nsrc/nv
+        @show fval
+        return fval
+    end
+    ## AD by Flux
+    @time fval, gs = Flux.withgradient(() -> obj(logK0), Flux.params(logK0))
 
-    # Update model and bound projection
-    global logK0 = box_logK(logK0 .+ step .* p)
+    fhistory[j] = fval
+    g = gs[logK0]
+    for p in Flux.params(logK0)
+        Flux.Optimise.update!(opt, p, gs[p])
+    end
+        
+    println("Inversion iteration no: ",j,"; function value: ", fhistory[j])
 
     ### plotting
     y_predict = box_co2(O(S(T(logK0), f)))
 
     ### save intermediate results
-    save_dict = @strdict j logK0 g step niterations nv nsrc nrec nv cut_area tstep factor n d fhistory
+    save_dict = @strdict j nssample logK0 g step niterations nv nsrc nrec nv cut_area tstep factor n d fhistory
     @tagsave(
         joinpath(datadir(sim_name, exp_name), savename(save_dict, "jld2"; digits=6)),
         save_dict;
@@ -224,7 +240,7 @@ for j=1:niterations
     )
 
     ## save figure
-    fig_name = @strdict j logK0 step niterations nv nsrc nrec nv cut_area tstep factor n d fhistory
+    fig_name = @strdict j nssample logK0 step niterations nv nsrc nrec nv cut_area tstep factor n d fhistory
 
     ## compute true and plot
     SNR = -2f1 * log10(norm(K-exp.(logK0))/norm(K))
@@ -254,16 +270,16 @@ for j=1:niterations
     fig = figure(figsize=(20,12));
     for i = 1:5
         subplot(4,5,i);
-        imshow(y_init[3*i,:,:]', vmin=0, vmax=1);
+        imshow(y_init[3*i]', vmin=0, vmax=1);
         title("initial prediction at snapshot $(3*i)")
         subplot(4,5,i+5);
-        imshow(sw_true[3*i,:,:]', vmin=0, vmax=1);
+        imshow(sw_true[3*i]', vmin=0, vmax=1);
         title("true at snapshot $(3*i)")
         subplot(4,5,i+10);
-        imshow(y_predict[3*i,:,:]', vmin=0, vmax=1);
+        imshow(y_predict[3*i]', vmin=0, vmax=1);
         title("predict at snapshot $(3*i)")
         subplot(4,5,i+15);
-        imshow(5*abs.(sw_true[3*i,:,:]'-y_predict[3*i,:,:]'), vmin=0, vmax=1);
+        imshow(5*abs.(sw_true[3*i]'-y_predict[3*i]'), vmin=0, vmax=1);
         title("5X diff at snapshot $(3*i)")
     end
     suptitle("End-to-end Inversion at iter $j")
