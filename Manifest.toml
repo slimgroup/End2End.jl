@@ -614,10 +614,10 @@ uuid = "682c06a0-de6a-54ab-a142-c8b1cf79cde6"
 version = "0.21.3"
 
 [[deps.JUDI]]
-deps = ["ChainRulesCore", "DSP", "Dierckx", "Distributed", "FFTW", "JOLI", "LinearAlgebra", "PyCall", "Random", "Reexport", "Requires", "SegyIO"]
-git-tree-sha1 = "23505823f5e483c3eb0accb3442e232d2069ef5a"
+deps = ["ChainRulesCore", "DSP", "Dierckx", "Distributed", "FFTW", "JOLI", "LinearAlgebra", "PyCall", "Random", "Reexport", "SegyIO"]
+git-tree-sha1 = "bea3ba16c43b3ce5166599f30b36d3550e562180"
 uuid = "f3b833dc-6b2e-5b9c-b940-873ed6319979"
-version = "3.2.1"
+version = "3.1.11"
 
 [[deps.JuliaVariables]]
 deps = ["MLStyle", "NameResolution"]
@@ -1110,9 +1110,9 @@ version = "1.1.1"
 
 [[deps.SegyIO]]
 deps = ["Distributed", "Printf", "Test"]
-git-tree-sha1 = "ecfa216e23fe8812fd4a599df8a789964e260ff6"
+git-tree-sha1 = "c8d336686d9902e812e50b8be72ba40e3b37ee9a"
 uuid = "157a0f19-4d44-4de5-a0d0-07e2f0ac4dfa"
-version = "0.8.3"
+version = "0.7.7"
 
 [[deps.Serialization]]
 uuid = "9e88b42a-f829-5b0c-bbe9-9e923198166b"
