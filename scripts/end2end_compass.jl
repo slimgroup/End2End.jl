@@ -30,18 +30,18 @@ d = (6., 6.)
 n = size(m)
 
 # downsample
-cut_area = [201, 450, 182, n[end]]
+cut_area = [201, 456, 182, n[end]]
 m = m[cut_area[1]:cut_area[2],cut_area[3]:cut_area[4]]
 h = (cut_area[3]-1) * d[end]
 v = Float64.(sqrt.(1f0./m));
 factor = 2
 v = 1.0./downsample(1.0./v, factor)
-Kh = VtoK(v, d);
-K = Float64.(Kh * md);
 
-# dimension for fluid-flow
-ns = (size(K,1), 1, size(K,2))
+## flow dimension
+ns = (size(v,1), 1, size(v,2))
 ds = (d[1] * factor, 2000.0, d[2] * factor)
+Kh = VtoK(v, ds);
+K = Float64.(Kh * md);
 
 # set up jutul model
 ϕ = 0.25
@@ -96,7 +96,7 @@ nrec = 960      # num of receivers
 
 models = [Model(n, d, o, (1f0 ./ vps[i]).^2f0; nb = 80) for i = 1:nv]   # wave model
 
-timeS = timeR = 2000f0               # recording time
+timeS = timeR = 3600f0               # recording time
 dtS = dtR = 4f0                     # recording time sampling rate
 ntS = Int(floor(timeS/dtS))+1       # time samples
 ntR = Int(floor(timeR/dtR))+1       # source time samples
@@ -129,7 +129,7 @@ srcGeometry = Geometry(xsrc, ysrc, zsrc; dt=dtS, t=timeS)
 recGeometry = Geometry(xrec, yrec, zrec; dt=dtR, t=timeR, nsrc=nsrc)
 
 # set up source
-f0 = 0.05f0     # kHz
+f0 = 0.02f0     # kHz
 wavelet = ricker_wavelet(timeS, dtS, f0)
 q = judiVector(srcGeometry, wavelet)
 
@@ -144,13 +144,13 @@ end
 
 # Define seismic data directory
 mkpath(datadir("seismic-data"))
-misc_dict = @strdict nsrc nrec nv cut_area tstep factor d n
+misc_dict = @strdict nsrc nrec nv f0 cut_area tstep factor d n
 
 ### generate/load data
 if ~isfile(datadir("seismic-data", savename(misc_dict, "jld2"; digits=6)))
     println("generating data")
     global d_obs = [Fs[i]*q for i = 1:nv]
-    seismic_dict = @strdict nsrc nrec nv cut_area tstep factor d n d_obs q srcGeometry recGeometry model
+    seismic_dict = @strdict nsrc nrec nv f0 cut_area tstep factor d n d_obs q srcGeometry recGeometry model
     @tagsave(
         datadir("seismic-data", savename(seismic_dict, "jld2"; digits=6)),
         seismic_dict;
@@ -232,7 +232,7 @@ for j=1:niterations
     y_predict = box_co2(O(S(T(logK0), f)))
 
     ### save intermediate results
-    save_dict = @strdict j nssample logK0 g step niterations nv nsrc nrec nv cut_area tstep factor n d fhistory
+    save_dict = @strdict j nssample f0 logK0 g step niterations nv nsrc nrec nv cut_area tstep factor n d fhistory
     @tagsave(
         joinpath(datadir(sim_name, exp_name), savename(save_dict, "jld2"; digits=6)),
         save_dict;
@@ -240,7 +240,7 @@ for j=1:niterations
     )
 
     ## save figure
-    fig_name = @strdict j nssample logK0 step niterations nv nsrc nrec nv cut_area tstep factor n d fhistory
+    fig_name = @strdict j nssample f0 logK0 step niterations nv nsrc nrec nv cut_area tstep factor n d fhistory
 
     ## compute true and plot
     SNR = -2f1 * log10(norm(K-exp.(logK0))/norm(K))
