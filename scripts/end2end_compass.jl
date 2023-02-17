@@ -168,7 +168,7 @@ lower, upper = 1.1*minimum(logK), 0.9*maximum(logK)
 box_logK(x::AbstractArray{T}) where T = max.(min.(x,T(upper)),T(lower))
 
 # Main loop
-niterations = 100
+niterations = 200
 fhistory = zeros(niterations)
 
 ### add box to co2 and velocity
