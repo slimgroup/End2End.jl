@@ -40,7 +40,7 @@ v = 1.0./downsample(1.0./v, factor)
 ## flow dimension
 ns = (size(v,1), 1, size(v,2))
 ds = (d[1] * factor, 2000.0, d[2] * factor)
-Kh = VtoK(v, ds);
+Kh = VtoK(v, (ds[1], ds[end]));
 K = Float64.(Kh * md);
 
 # set up jutul model
