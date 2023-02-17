@@ -12,6 +12,7 @@ using LineSearches
 using JLD2
 using JUDI
 using Statistics
+using Images
 using Random
 Random.seed!(2023)
 
@@ -74,6 +75,14 @@ function O(state::AbstractVector)
     return [full_his[:,:,i] for i = 1:nv]
 end
 sw_true = O(state)
+
+function CO2mute(sw_true::Vector{Matrix{Float32}}; clip::Float32=1f-3)
+    sw_smooth = [imfilter(sw_true[i], Kernel.gaussian(8)) for i = 1:length(sw_true)];
+    mask = [imfilter(Float32.(sw_smooth[i] .>= clip), Kernel.gaussian(5)) for i = 1:length(sw_smooth)]
+    return mask
+end
+mask = CO2mute(sw_true);
+M(sw::Vector{Matrix{Float32}}) = [sw[i] .* mask[i] for i = 1:length(sw)]
 
 ### pad co2 back to normal size
 pad(c::Matrix{Float32}) =
@@ -185,7 +194,7 @@ y_init = box_co2(O(S(T(logK_init), f)))
 
 # objective function for inversion
 function obj(logK)
-    c = box_co2(O(S(T(logK), f))); v = R(pad(c)); v_up = box_v(v); dpred = F(v_up);
+    c = box_co2(M(O(S(T(logK), f)))); v = R(pad(c)); v_up = box_v(v); dpred = F(v_up);
     fval = .5f0 * norm(dpred-d_obs)^2f0/nsrc/nv
     @show fval
     return fval
