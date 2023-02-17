@@ -238,7 +238,7 @@ for j=1:niterations
     println("Inversion iteration no: ",j,"; function value: ", fhistory[j])
 
     ### plotting
-    y_predict = box_co2(O(S(T(logK0), f)))
+    y_predict = box_co2(M(O(S(T(logK0), f))))
 
     ### save intermediate results
     save_dict = @strdict j nssample f0 logK0 g step niterations nv nsrc nrec nv cut_area tstep factor n d fhistory
