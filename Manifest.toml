@@ -643,7 +643,7 @@ version = "0.2.0"
 
 [[deps.JutulDarcyAD]]
 deps = ["ChainRulesCore", "Flux", "Jutul", "JutulDarcy", "LinearAlgebra", "MultiComponentFlash", "Optim", "Statistics", "Zygote"]
-git-tree-sha1 = "829a7a0cc3a2833709b9c23f78b9d19a7e104a84"
+git-tree-sha1 = "79c5524685418cc0fca10416d6d7a76665c257da"
 repo-rev = "up-jutul"
 repo-url = "https://github.com/slimgroup/JutulDarcyAD.jl.git"
 uuid = "41f0c4f5-9bdd-4ef1-8c3a-d454dff2d562"
@@ -864,9 +864,9 @@ version = "0.2.7"
 
 [[deps.NaNMath]]
 deps = ["OpenLibm_jll"]
-git-tree-sha1 = "a7c3d1da1189a1c2fe843a3bfa04d18d20eb3211"
+git-tree-sha1 = "0877504529a3e5c3343c6f8b4c0381e57e4387e4"
 uuid = "77ba4419-2d1f-58cd-9bb1-8ffee604a2e3"
-version = "1.0.1"
+version = "1.0.2"
 
 [[deps.NameResolution]]
 deps = ["PrettyPrint"]
