@@ -78,7 +78,7 @@ sw_true = O(state)
 
 function CO2mute(sw_true::Vector{Matrix{Float32}}; clip::Float32=2f-3)
     sw_smooth = [imfilter(sw_true[i], Kernel.gaussian(5)) for i = 1:length(sw_true)];
-    mask = [imfilter(Float32.(sw_smooth[i] .>= clip), Kernel.gaussian(5)) for i = 1:length(sw_smooth)]
+    mask = [Float32.(imfilter(Float32.(sw_smooth[i] .>= clip), Kernel.gaussian(5))) for i = 1:length(sw_smooth)]
     return mask
 end
 mask = CO2mute(sw_true);
