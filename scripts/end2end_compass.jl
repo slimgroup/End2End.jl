@@ -76,8 +76,8 @@ function O(state::AbstractVector)
 end
 sw_true = O(state)
 
-function CO2mute(sw_true::Vector{Matrix{Float32}}; clip::Float32=1f-3)
-    sw_smooth = [imfilter(sw_true[i], Kernel.gaussian(8)) for i = 1:length(sw_true)];
+function CO2mute(sw_true::Vector{Matrix{Float32}}; clip::Float32=2f-3)
+    sw_smooth = [imfilter(sw_true[i], Kernel.gaussian(5)) for i = 1:length(sw_true)];
     mask = [imfilter(Float32.(sw_smooth[i] .>= clip), Kernel.gaussian(5)) for i = 1:length(sw_smooth)]
     return mask
 end
@@ -189,12 +189,13 @@ box_v(x::AbstractVector) = [box_v(x[i]) for i = 1:length(x)]
 ### inversion initialization
 logK0 = deepcopy(logK)
 logK0[v.>3.5] .= mean(logK[v.>3.5])
+dlogK = 0 .* logK0
 logK_init = deepcopy(logK0)
 y_init = box_co2(O(S(T(logK_init), f)))
 
 # objective function for inversion
-function obj(logK)
-    c = box_co2(M(O(S(T(logK), f)))); v = R(pad(c)); v_up = box_v(v); dpred = F(v_up);
+function obj(dlogK)
+    c = box_co2(M(O(S(T(logK0+mask[end].*dlogK), f)))); v = R(pad(c)); v_up = box_v(v); dpred = F(v_up);
     fval = .5f0 * norm(dpred-d_obs)^2f0/nsrc/nv
     @show fval
     return fval
@@ -220,28 +221,28 @@ for j=1:niterations
     end
 
     # objective function for inversion
-    function obj(logK)
-        c = box_co2(O(S(T(box_logK(logK)), f))); v = R(pad(c)); v_up = box_v(v); dpred = F(v_up);
+    function obj(dlogK)
+        c = box_co2(M(O(S(T(box_logK(logK0+mask[end].*dlogK)), f)))); v = R(pad(c)); v_up = box_v(v); dpred = F(v_up);
         fval = .5f0 * norm(dpred-dobs)^2f0/nsrc/nv
         @show fval
         return fval
     end
     ## AD by Flux
-    @time fval, gs = Flux.withgradient(() -> obj(logK0), Flux.params(logK0))
+    @time fval, gs = Flux.withgradient(() -> obj(dlogK), Flux.params(dlogK))
 
     fhistory[j] = fval
-    g = gs[logK0]
-    for p in Flux.params(logK0)
+    g = gs[dlogK]
+    for p in Flux.params(dlogK)
         Flux.Optimise.update!(opt, p, gs[p])
     end
         
     println("Inversion iteration no: ",j,"; function value: ", fhistory[j])
 
     ### plotting
-    y_predict = box_co2(M(O(S(T(logK0), f))))
+    y_predict = box_co2(M(O(S(T(mask[end].*dlogK+logK0), f))))
 
     ### save intermediate results
-    save_dict = @strdict j nssample f0 logK0 g step niterations nv nsrc nrec nv cut_area tstep factor n d fhistory
+    save_dict = @strdict j nssample f0 dlogK logK0 g step niterations nv nsrc nrec nv cut_area tstep factor n d fhistory mask
     @tagsave(
         joinpath(datadir(sim_name, exp_name), savename(save_dict, "jld2"; digits=6)),
         save_dict;
@@ -249,19 +250,19 @@ for j=1:niterations
     )
 
     ## save figure
-    fig_name = @strdict j nssample f0 logK0 step niterations nv nsrc nrec nv cut_area tstep factor n d fhistory
+    fig_name = @strdict j nssample f0 dlogK logK0 step niterations nv nsrc nrec nv cut_area tstep factor n d fhistory mask
 
     ## compute true and plot
-    SNR = -2f1 * log10(norm(K-exp.(logK0))/norm(K))
+    SNR = -2f1 * log10(norm(K-exp.(mask[end].*dlogK+logK0))/norm(K))
     fig = figure(figsize=(20,12));
     subplot(2,2,1);
-    imshow(exp.(logK0)'./md,vmin=0,vmax=maximum(K/md));title("inversion by NN, $(j) iter");colorbar();
+    imshow(exp.(mask[end].*dlogK+logK0)'./md,vmin=0,vmax=maximum(K/md));title("inversion by NN, $(j) iter");colorbar();
     subplot(2,2,2);
     imshow(K'./md,vmin=0,vmax=maximum(K/md));title("GT permeability");colorbar();
     subplot(2,2,3);
     imshow(exp.(logK_init)'./md,vmin=0,vmax=maximum(K/md));title("initial permeability");colorbar();
     subplot(2,2,4);
-    imshow(abs.(K'-exp.(logK0)')./md,vmin=0,vmax=maximum(K/md));title("abs error, SNR=$SNR");colorbar();
+    imshow(abs.(K'-exp.(mask[end].*dlogK+logK0)')./md,vmin=0,vmax=maximum(K/md));title("abs error, SNR=$SNR");colorbar();
     suptitle("End-to-end Inversion at iter $j")
     tight_layout()
     safesave(joinpath(plotsdir(sim_name, exp_name), savename(fig_name; digits=6)*"_K.png"), fig);
