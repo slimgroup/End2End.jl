@@ -5,26 +5,18 @@ function VtoK(v::Matrix{T}, d::Tuple{T, T}; α::T=T(20)) where T
     n = size(v)
     idx_wb = find_water_bottom(v.-minimum(v))
     idx_ucfmt = find_water_bottom((v.-T(3.5)).*(v.>T(3.5)))
-    Kh = zeros(T, n)
     capgrid = Int(round(T(50)/d[2]))
-    for i = 1:n[1]
-        Kh[i,1:idx_wb[i]-1] .= T(1e-10)  # water layer
-        Kh[i,idx_wb[i]:idx_ucfmt[i]-capgrid-1] .= α*exp.(v[i,idx_wb[i]:idx_ucfmt[i]-capgrid-1])
-        Kh[i,idx_ucfmt[i]-capgrid:idx_ucfmt[i]-1] .= T(1e-3)
-        Kh[i,idx_ucfmt[i]:end] .= α*exp.(v[i,idx_ucfmt[i]:end]) .- α*exp(T(3.5))
-    end
-    return Kh
+
+    return vcat([vcat(
+        T(1e-10) * ones(Float32, idx_wb[i]-1),
+        α * exp.(v[i,idx_wb[i]:idx_ucfmt[i]-capgrid-1]),
+        T(1e-3) * ones(T, capgrid),
+        α*exp.(v[i,idx_ucfmt[i]:end])  .- α*exp(T(3.5)))' for i = 1:n[1]]...)
 end
 
 function downsample(v::Matrix{T}, factor::Int) where T
     v_out_size = div.(size(v), factor)
-    v_out = zeros(T, v_out_size)
-    for i = 1:v_out_size[1]
-        for j = 1:v_out_size[2]
-            v_out[i,j] = mean(v[factor*i-factor+1:factor*i, factor*j-factor+1:factor*j])
-        end
-    end
-    return v_out
+    return vcat([vcat([mean(v[factor*i-factor+1:factor*i, factor*j-factor+1:factor*j]) for j = 1:v_out_size[2]]...)' for i = 1:v_out_size[1]]...)
 end
 
 #### Patchy saturation model
