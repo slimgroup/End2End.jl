@@ -98,7 +98,7 @@ for i = 1:nsample
 
     Base.flush(Base.stdout)
 
-    println("sample $(2*i-1) and $(2*i)")
+    println("sample $(i)")
     @time state = S(T(logKs[:,:,i]), f)
     conc[:,:,:,i] = reshape(Saturations(state), n[1], n[end], nt)
     pres[:,:,:,i] = reshape(Pressure(state), n[1], n[end], nt)
