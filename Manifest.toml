@@ -793,8 +793,6 @@ version = "1.4.1"
 [[deps.JOLI]]
 deps = ["ChainRulesCore", "Distributed", "DistributedArrays", "FFTW", "InplaceOps", "InteractiveUtils", "IterativeSolvers", "Libdl", "LinearAlgebra", "NFFT", "Nullables", "Printf", "PyCall", "Random", "SharedArrays", "SparseArrays", "SpecialFunctions", "Wavelets"]
 git-tree-sha1 = "9fdcff98bd780798fec1c8d28d94c44ed349084b"
-repo-rev = "master"
-repo-url = "https://github.com/slimgroup/JOLI.jl.git"
 uuid = "bb331ad6-a1cf-11e9-23da-9bcb53c69f6f"
 version = "0.8.4"
 
