@@ -62,7 +62,7 @@ K = max.(Float64.(VtoK_nowater(1.0./downsample(1.0./v6[1:256, 1, end-160+1:end],
 model = jutulModel(n, d, ϕ, K1to3(K; kvoverkh=0.36); h=h)
 
 ## simulation time steppings
-tstep = 365.25 * ones(17)
+tstep = 365.25 * ones(18)
 tot_time = sum(tstep)
 nt = length(tstep)
 
