@@ -9,7 +9,7 @@ function VtoK(v::Matrix{T}, d::Tuple{T, T}; α::T=T(20)) where T
 
     return vcat([vcat(
         T(1e-10) * ones(Float32, idx_wb[i]-1),
-        α * exp.(v[i,idx_wb[i]:idx_ucfmt[i]-capgrid-1]),
+        α * exp.(v[i,idx_wb[i]:idx_ucfmt[i]-capgrid-1]) .- α*exp(T(1.48)),
         T(1e-3) * ones(T, capgrid),
         α*exp.(v[i,idx_ucfmt[i]:end])  .- α*exp(T(3.5)))' for i = 1:n[1]]...)
 end
