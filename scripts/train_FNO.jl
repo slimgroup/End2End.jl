@@ -24,7 +24,7 @@ Random.seed!(1234)
 
 # Define raw data directory
 data_path = datadir("gen_train/compass", "h=1086.0_irate=0.3_nsample=2500_ϕ=0.25.jld2")
-mkpath(data_path)
+mkpath(datadir("gen_train","compass"))
 # Download the dataset into the data directory if it does not exist
 if ~isfile(data_path)
     run(`wget https://www.dropbox.com/s/s6y6ndglk4pcme3/'
