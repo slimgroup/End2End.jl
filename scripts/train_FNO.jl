@@ -45,7 +45,7 @@ learning_rate = 1f-4
 
 epochs = 1000
 
-modes = [8, 8, 4]
+modes = [16, 16, 4]
 width = 20
 
 n = (n[1], n[end])
