@@ -1,4 +1,4 @@
-export VtoK, downsample, Patchy, jitter
+export VtoK, downsample, Patchy, jitter, box_logK, box_co2, box_v
 
 function VtoK(v::Matrix{T}, d::Tuple{T, T}; α::T=T(20)) where T
 
@@ -63,3 +63,9 @@ function jitter(nsrc::Int, nssample::Int)
     npatch = Int(nsrc/nssample)
     return rand(1:npatch, nssample) .+ convert(Vector{Int},0:npatch:(nsrc-1))
 end
+
+box_logK(x::AbstractArray{T}; upper=log(1500*md), lower=log(1e-4*md)) where T = max.(min.(x,T(upper)),T(lower))
+box_co2(x::AbstractArray{T}) where T = max.(min.(x,T(0.9)),T(0))
+box_co2(x::AbstractVector) = [box_co2(x[i]) for i = 1:length(x)]
+box_v(x::AbstractMatrix{T}; upper=4.6454024f0, lower=1.48f0) where T = max.(min.(x,T(upper)),T(lower))
+box_v(x::AbstractVector) = [box_v(x[i]) for i = 1:length(x)]
