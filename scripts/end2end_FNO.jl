@@ -221,10 +221,13 @@ dlogK = zeros(Float32, size(logK0))
 logK_init = deepcopy(logK0)
 y_init = box_co2(M(O(S(logK_init))))
 
-# ADAM-W algorithm
-learning_rate = 5f-3
+# GD algorithm
+learning_rate = 1f-1
+lr_min = learning_rate*1f-2
 nssample = 4
-opt = Flux.Optimise.ADAMW(learning_rate, (0.9, 0.999), 1f-4)
+nbatches = div(nsrc, nssample)
+decay_rate = exp(log(lr_min/learning_rate)/(niterations*nbatches))
+opt = Flux.Optimiser(ExpDecay(learning_rate, decay_rate, 1, lr_min), Descent())
 
 for j=1:niterations
 

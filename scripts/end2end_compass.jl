@@ -193,18 +193,13 @@ dlogK = 0 .* logK0
 logK_init = deepcopy(logK0)
 y_init = box_co2(O(S(T(logK_init), f)))
 
-# objective function for inversion
-function obj(dlogK)
-    c = box_co2(M(O(S(T(logK0+mask[end].*dlogK), f)))); v = R(pad(c)); v_up = box_v(v); dpred = F(v_up);
-    fval = .5f0 * norm(dpred-d_obs)^2f0/nsrc/nv
-    @show fval
-    return fval
-end
-
-# ADAM-W algorithm
-learning_rate = 1e-2
+# GD algorithm
+learning_rate = 1f3
+lr_min = learning_rate*1f-2
 nssample = 4
-opt = Flux.Optimise.ADAMW(learning_rate, (0.9, 0.999), 1e-4)
+nbatches = div(nsrc, nssample)
+decay_rate = exp(log(lr_min/learning_rate)/(niterations*nbatches))
+opt = Flux.Optimiser(ExpDecay(learning_rate, decay_rate, 1, lr_min), Descent())
 
 for j=1:niterations
 
@@ -232,9 +227,7 @@ for j=1:niterations
 
     fhistory[j] = fval
     g = gs[dlogK]
-    for p in Flux.params(dlogK)
-        Flux.Optimise.update!(opt, p, gs[p])
-    end
+    Flux.Optimise.update!(opt, logK0, g)
         
     println("Inversion iteration no: ",j,"; function value: ", fhistory[j])
 
