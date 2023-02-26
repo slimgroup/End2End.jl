@@ -29,7 +29,7 @@ matplotlib.use("agg")
 include(srcdir("dummy_src_file.jl"))
 
 sim_name = "end2end-inv"
-exp_name = "compass-NF-FNO"
+exp_name = "compass-FNO"
 
 mkpath(datadir())
 mkpath(plotsdir())
@@ -222,7 +222,7 @@ logK_init = deepcopy(logK0)
 y_init = box_co2(M(O(S(logK_init))))
 
 # ADAM-W algorithm
-learning_rate = 1f-2
+learning_rate = 5f-3
 nssample = 4
 opt = Flux.Optimise.ADAMW(learning_rate, (0.9, 0.999), 1f-4)
 
