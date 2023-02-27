@@ -246,7 +246,7 @@ for j=1:niterations
     # objective function for inversion
     function obj(dlogK)
         c = box_co2(M(O(S(box_logK(logK0+mask[end].*dlogK))))); v = R(pad(c)); v_up = box_v(v); dpred = F(v_up);
-        fval = .5f0 * norm(dpred-d_obs)^2f0/nsrc/nv
+        fval = .5f0 * norm(dpred-dobs)^2f0/nsrc/nv
         @show fval
         return fval
     end
