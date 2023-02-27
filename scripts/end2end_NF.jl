@@ -226,7 +226,7 @@ logK0 = deepcopy(logK)
 logK0[v.>3.5] .= mean(logK[v.>3.5])
 z = G.inverse(reshape(Float32.(logK0), ns[1], ns[end], 1, 1))
 logK_init = deepcopy(logK0)
-y_init = box_co2(M(O(S(logK_init))))
+y_init = box_co2(O(S(T(logK_init), f)))
 
 # GD algorithm
 learning_rate = 1f0

@@ -190,9 +190,9 @@ box_v(x::AbstractVector) = [box_v(x[i]) for i = 1:length(x)]
 ### inversion initialization
 logK0 = deepcopy(logK)
 logK0[v.>3.5] .= mean(logK[v.>3.5])
-z = G.inverse(reshape(Float32.(logK0), ns[1], ns[end], 1, 1))
+dlogK = 0 .* logK0
 logK_init = deepcopy(logK0)
-y_init = box_co2(M(O(S(logK_init))))
+y_init = box_co2(O(S(T(logK_init), f)))
 
 # GD algorithm
 learning_rate = 125f0
@@ -200,22 +200,6 @@ lr_min = learning_rate*1f-2
 nssample = 4
 nbatches = div(nsrc, nssample)
 decay_rate = exp(log(lr_min/learning_rate)/(niterations*nbatches))
-opt = Flux.Optimiser(ExpDecay(learning_rate, decay_rate, 1, lr_min), Descent())
-
-### inversion initialization
-logK0 = deepcopy(logK)
-logK0[v.>3.5] .= mean(logK[v.>3.5])
-logK0 = Float32.(logK0)
-z = G.inverse(reshape(logK0, ns[1], ns[end], 1, 1))
-logK_init = deepcopy(logK0)
-y_init = box_co2(M(O(S(logK_init))))
-
-# GD algorithm
-learning_rate = 3f1
-lr_min = learning_rate*1f-2
-nssample = 4
-nbatches = div(nsrc, nssample)
-decay_rate = exp(log(lr_min/learning_rate)/niterations)
 opt = Flux.Optimiser(ExpDecay(learning_rate, decay_rate, 1, lr_min), Descent())
 
 for j=1:niterations
