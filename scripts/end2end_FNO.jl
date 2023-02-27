@@ -222,7 +222,7 @@ logK_init = deepcopy(logK0)
 y_init = box_co2(M(O(S(logK_init))))
 
 # GD algorithm
-learning_rate = 1f-1
+learning_rate = 1f0
 lr_min = learning_rate*1f-2
 nssample = 4
 nbatches = div(nsrc, nssample)
@@ -255,7 +255,6 @@ for j=1:niterations
     g = gs[dlogK]
     Flux.Optimise.update!(opt, dlogK, g)
     fhistory[j] = fval
-
     println("Inversion iteration no: ",j,"; function value: ", fhistory[j])
 
     ### plotting
