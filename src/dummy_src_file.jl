@@ -29,8 +29,8 @@ function Patchy(sw::Matrix{T}, vp::Matrix{T}, rho::Matrix{T}, phi::Matrix{T};
     bulk_sat1 = rho .* (vp.^2f0 - 4f0/3f0 .* vs.^2f0)
     shear_sat1 = rho .* (vs.^2f0)
 
-    patch_temp = bulk_sat1 ./(bulk_min .- bulk_sat1) - 
-    bulk_fl1 ./ phi ./ (bulk_min .- bulk_fl1) + 
+    patch_temp = bulk_sat1 ./(bulk_min .- bulk_sat1) .- 
+    bulk_fl1 ./ phi ./ (bulk_min .- bulk_fl1) .+ 
     bulk_fl2 ./ phi ./ (bulk_min .- bulk_fl2)
 
     bulk_sat2 = bulk_min./(1f0./patch_temp .+ 1f0)

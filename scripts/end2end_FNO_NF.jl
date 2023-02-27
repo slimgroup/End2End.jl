@@ -152,6 +152,12 @@ function CO2mute(sw_true::Vector{Matrix{Float32}}; clip::Float32=2f-3)
     return mask
 end
 mask = CO2mute(sw_true);
+known_idx = [findlast(Kh[i,:] .== 1e-3) for i = 1:size(Kh,1)]
+known_mask = ones(Float32, size(Kh))
+for i = 1:size(known_mask,1)
+    known_mask[i,1:known_idx[i]] .= 0f0
+end
+mask = [mask[i] .* known_mask for i = 1:length(mask)]
 M(sw::Vector{Matrix{Float32}}) = [sw[i] .* mask[i] for i = 1:length(sw)]
 
 ### pad co2 back to normal size
@@ -299,6 +305,9 @@ for j=1:niterations
         save_dict;
         safe=true
     )
+
+    ## save figure
+    fig_name = @strdict j λ nssample f0 dlogK logK_j g niterations nv nsrc nrec nv cut_area tstep factor n d fhistory mask
 
     ## compute true and plot
     SNR = -2f1 * log10(norm(K-exp.(logK_j))/norm(K))
