@@ -30,7 +30,7 @@ matplotlib.use("agg")
 include(srcdir("dummy_src_file.jl"))
 
 sim_name = "end2end-inv"
-exp_name = "compass-FNO"
+exp_name = "compass-FNO-NF"
 
 mkpath(datadir())
 mkpath(plotsdir())
