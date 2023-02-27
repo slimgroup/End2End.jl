@@ -15,6 +15,7 @@ using Statistics
 using Images
 using Random
 using InvertibleNetworks
+using GlowInvertibleNetwork
 using FNO4CO2
 
 Random.seed!(2023)
@@ -60,6 +61,37 @@ end
 function S(x)
     return clamp.(NN(perm_to_tensor_(x, grid, AN)), 0f0, 0.9f0)[:,:,1:15,1];
 end
+
+## load NF
+net_path = datadir("trained-NF", "clip_norm=5.0_depth=5_e=30_lr=0.0002_nc_hidden=512_nscales=4_ntrain=10000_nx=128_ny=80_α=0.1_αmin=0.01.jld2")
+mkpath(datadir("trained-NF"))
+
+# Download the dataset into the data directory if it does not exist
+if ~isfile(net_path)
+    run(`wget https://www.dropbox.com/s/fc22lk28u5z2d04/'
+        'clip_norm=5.0_depth=5_e=30_lr=0.0002_nc_hidden=512_nscales=4_ntrain=10000_nx=128_ny=80_α=0.1_αmin=0.01.jld2 -q -O $net_path`)
+end
+
+network_dict = JLD2.jldopen(net_path, "r");
+Params = network_dict["Params"];
+Rrn_here = network_dict["Rrn_here"];
+
+copy!(Random.default_rng(), Rrn_here);
+opts = GlowOptions(; cl_activation=SigmoidNewLayer(0.5f0),
+                    cl_affine=true,
+                    init_cl_id=true,
+                    conv1x1_nvp=false,
+                    init_conv1x1_permutation=true,
+                    conv1x1_orth_fixed=true,
+                    T=Float32)
+G = Glow(1, network_dict["nc_hidden"], network_dict["depth"], network_dict["nscales"]; logdet=false, opt=opts) #|> gpu
+set_params!(G, Params);
+
+# check generative samples are good so that loading went well. 
+G.forward(randn(Float32,network_dict["nx"],network_dict["ny"],1,1));
+gen = G.inverse(randn(Float32,network_dict["nx"],network_dict["ny"],1,1));
+# generator now
+G = reverse(G);
 
 ## grid size
 JLD2.@load datadir("BGCompass_tti_625m.jld2") m d rho;
@@ -217,17 +249,18 @@ fhistory = zeros(niterations)
 logK0 = deepcopy(logK)
 logK0[v.>3.5] .= mean(logK[v.>3.5])
 logK0 = Float32.(logK0)
-dlogK = zeros(Float32, size(logK0))
+z = G.inverse(reshape(logK0, ns[1], ns[end], 1, 1))
 logK_init = deepcopy(logK0)
 y_init = box_co2(M(O(S(logK_init))))
 
 # GD algorithm
-learning_rate = 3.75f0
+learning_rate = 1f0
 lr_min = learning_rate*1f-2
 nssample = 4
 nbatches = div(nsrc, nssample)
 decay_rate = exp(log(lr_min/learning_rate)/niterations)
 opt = Flux.Optimiser(ExpDecay(learning_rate, decay_rate, 1, lr_min), Descent())
+λ = 0f0
 
 for j=1:niterations
 
@@ -244,48 +277,43 @@ for j=1:niterations
     end
 
     # objective function for inversion
-    function obj(dlogK)
-        c = box_co2(M(O(S(box_logK(logK0+mask[end].*dlogK))))); v = R(pad(c)); v_up = box_v(v); dpred = F(v_up);
-        fval = .5f0 * norm(dpred-dobs)^2f0/nssample/nv
+    function obj(z)
+        global logK_j = box_logK(G(z)[:,:,1,1])
+        global c_j = box_co2(M(O(S(logK_j))))
+        global dpred_j = F(box_v(R(pad(c_j))))
+        fval = .5f0 * norm(dpred_j-dobs)^2f0/nssample/nv + .5f0 * λ^2f0 * norm(z)^2f0/length(z) 
         @show fval
         return fval
     end
     ## AD by Flux
-    @time fval, gs = Flux.withgradient(() -> obj(dlogK), Flux.params(dlogK))
-    g = gs[dlogK]
-    Flux.Optimise.update!(opt, dlogK, g)
+    @time fval, gs = Flux.withgradient(() -> obj(z), Flux.params(z))
+    g = gs[z]
+    Flux.Optimise.update!(opt, z, g)
     fhistory[j] = fval
     println("Inversion iteration no: ",j,"; function value: ", fhistory[j])
 
-    ### plotting
-    logK0now = box_logK(logK0+mask[end].*dlogK);
-    y_predict = box_co2(M(O(S(logK0now))));
-
     ### save intermediate results
-    save_dict = @strdict j nssample f0 dlogK logK0 g niterations nv nsrc nrec nv cut_area tstep factor n d fhistory mask
+    save_dict = @strdict j λ z nssample f0 logK_j g step niterations nv nsrc nrec nv cut_area tstep factor n d fhistory mask
     @tagsave(
         joinpath(datadir(sim_name, exp_name), savename(save_dict, "jld2"; digits=6)),
         save_dict;
         safe=true
     )
 
-    ## save figure
-    fig_name = @strdict j nssample f0 dlogK logK0 niterations nv nsrc nrec nv cut_area tstep factor n d fhistory mask
-
     ## compute true and plot
-    SNR = -2f1 * log10(norm(K-exp.(logK0now))/norm(K))
+    SNR = -2f1 * log10(norm(K-exp.(logK_j))/norm(K))
     fig = figure(figsize=(20,12));
     subplot(2,2,1);
-    imshow(exp.(logK0now)'./md,vmin=0,vmax=maximum(K/md));title("inversion by NN, $(j) iter");colorbar();
+    imshow(exp.(logK_j)'./md,vmin=0,vmax=maximum(K/md));title("inversion by NN, $(j) iter");colorbar();
     subplot(2,2,2);
     imshow(K'./md,vmin=0,vmax=maximum(K/md));title("GT permeability");colorbar();
     subplot(2,2,3);
     imshow(exp.(logK_init)'./md,vmin=0,vmax=maximum(K/md));title("initial permeability");colorbar();
     subplot(2,2,4);
-    imshow(abs.(K'-exp.(logK0now)')./md,vmin=0,vmax=maximum(K/md));title("abs error, SNR=$SNR");colorbar();
+    imshow(abs.(K'-exp.(logK_j)')./md,vmin=0,vmax=maximum(K/md));title("abs error, SNR=$SNR");colorbar();
     suptitle("End-to-end Inversion at iter $j")
     tight_layout()
-    safesave(joinpath(plotsdir(sim_name, exp_name), savename(fig_name; digits=6)*"_K.png"), fig);
+    safesave(joinpath(plotsdir(sim_name, exp_name), savename(save_dict; digits=6)*"_K.png"), fig);
     close(fig)
 
     ## loss
@@ -293,7 +321,7 @@ for j=1:niterations
     plot(fhistory[1:j]);title("loss=$(fhistory[j])");
     suptitle("End-to-end Inversion at iter $j")
     tight_layout()
-    safesave(joinpath(plotsdir(sim_name, exp_name), savename(fig_name; digits=6)*"_loss.png"), fig);
+    safesave(joinpath(plotsdir(sim_name, exp_name), savename(save_dict; digits=6)*"_loss.png"), fig);
     close(fig)
 
     ## data fitting
@@ -306,15 +334,15 @@ for j=1:niterations
         imshow(sw_true[3*i]', vmin=0, vmax=1);
         title("true at snapshot $(3*i)")
         subplot(4,5,i+10);
-        imshow(y_predict[3*i]', vmin=0, vmax=1);
+        imshow(c_j[3*i]', vmin=0, vmax=1);
         title("predict at snapshot $(3*i)")
         subplot(4,5,i+15);
-        imshow(5*abs.(sw_true[3*i]'-y_predict[3*i]'), vmin=0, vmax=1);
+        imshow(5*abs.(sw_true[3*i]'-c_j[3*i]'), vmin=0, vmax=1);
         title("5X diff at snapshot $(3*i)")
     end
     suptitle("End-to-end Inversion at iter $j")
     tight_layout()
-    safesave(joinpath(plotsdir(sim_name, exp_name), savename(fig_name; digits=6)*"_saturation.png"), fig);
+    safesave(joinpath(plotsdir(sim_name, exp_name), savename(save_dict; digits=6)*"_saturation.png"), fig);
     close(fig)
 
 end

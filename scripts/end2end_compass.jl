@@ -190,16 +190,32 @@ box_v(x::AbstractVector) = [box_v(x[i]) for i = 1:length(x)]
 ### inversion initialization
 logK0 = deepcopy(logK)
 logK0[v.>3.5] .= mean(logK[v.>3.5])
-dlogK = 0 .* logK0
+z = G.inverse(reshape(Float32.(logK0), ns[1], ns[end], 1, 1))
 logK_init = deepcopy(logK0)
-y_init = box_co2(O(S(T(logK_init), f)))
+y_init = box_co2(M(O(S(logK_init))))
 
 # GD algorithm
-learning_rate = 1f3
+learning_rate = 125f0
 lr_min = learning_rate*1f-2
 nssample = 4
 nbatches = div(nsrc, nssample)
 decay_rate = exp(log(lr_min/learning_rate)/(niterations*nbatches))
+opt = Flux.Optimiser(ExpDecay(learning_rate, decay_rate, 1, lr_min), Descent())
+
+### inversion initialization
+logK0 = deepcopy(logK)
+logK0[v.>3.5] .= mean(logK[v.>3.5])
+logK0 = Float32.(logK0)
+z = G.inverse(reshape(logK0, ns[1], ns[end], 1, 1))
+logK_init = deepcopy(logK0)
+y_init = box_co2(M(O(S(logK_init))))
+
+# GD algorithm
+learning_rate = 3f1
+lr_min = learning_rate*1f-2
+nssample = 4
+nbatches = div(nsrc, nssample)
+decay_rate = exp(log(lr_min/learning_rate)/niterations)
 opt = Flux.Optimiser(ExpDecay(learning_rate, decay_rate, 1, lr_min), Descent())
 
 for j=1:niterations
@@ -236,7 +252,7 @@ for j=1:niterations
     y_predict = box_co2(M(O(S(T(mask[end].*dlogK+logK0), f))))
 
     ### save intermediate results
-    save_dict = @strdict j nssample f0 dlogK logK0 g step niterations nv nsrc nrec nv cut_area tstep factor n d fhistory mask
+    save_dict = @strdict j nssample f0 dlogK logK0 g niterations nv nsrc nrec nv cut_area tstep factor n d fhistory mask
     @tagsave(
         joinpath(datadir(sim_name, exp_name), savename(save_dict, "jld2"; digits=6)),
         save_dict;
@@ -244,7 +260,7 @@ for j=1:niterations
     )
 
     ## save figure
-    fig_name = @strdict j nssample f0 dlogK logK0 step niterations nv nsrc nrec nv cut_area tstep factor n d fhistory mask
+    fig_name = @strdict j nssample f0 dlogK logK0 niterations nv nsrc nrec nv cut_area tstep factor n d fhistory mask
 
     ## compute true and plot
     SNR = -2f1 * log10(norm(K-exp.(mask[end].*dlogK+logK0))/norm(K))

@@ -722,8 +722,8 @@ version = "1.3.0"
 
 [[deps.GlowInvertibleNetwork]]
 deps = ["CUDA", "ChainRules", "Debugger", "ExponentialUtilities", "Flux", "ImageQualityIndexes", "Images", "InvertibleNetworks", "JLD", "JLD2", "JOLI", "JUDI", "LinearAlgebra", "MLDatasets", "MLUtils", "NNlib", "NNlibCUDA", "PyPlot", "Revise", "SlimOptim", "Statistics"]
-git-tree-sha1 = "380b5b0148c153ed8e72a76a03b533ce13718d26"
-repo-rev = "rafael-map"
+git-tree-sha1 = "e5603bdc997e0bd1083e7ba01f7ac31cdcdfd09b"
+repo-rev = "master"
 repo-url = "https://github.com/ziyiyin97/GlowInvertibleNetwork.git"
 uuid = "9487948d-2ffa-4c4c-9bcc-0b230cf790ec"
 version = "0.1.0"

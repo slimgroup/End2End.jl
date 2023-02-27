@@ -90,7 +90,7 @@ G.forward(randn(Float32,network_dict["nx"],network_dict["ny"],1,1));
 gen = G.inverse(randn(Float32,network_dict["nx"],network_dict["ny"],1,1));
 
 # generator now
-G = G |> gpu;
+G = G |> device;
 G = reverse(G);
 
 ## grid size
