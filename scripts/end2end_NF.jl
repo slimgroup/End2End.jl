@@ -14,6 +14,9 @@ using JUDI
 using Statistics
 using Images
 using Random
+using InvertibleNetworks
+using GlowInvertibleNetwork
+using FNO4CO2
 Random.seed!(2023)
 
 matplotlib.use("agg")
