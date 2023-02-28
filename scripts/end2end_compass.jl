@@ -4,6 +4,7 @@ using DrWatson
 @quickactivate "jutul-compass"
 
 using Pkg; Pkg.instantiate();
+include(srcdir("dummy_src_file.jl"))
 using JUDI
 dummy_JUDI_operation()
 using JutulDarcyAD
@@ -18,7 +19,6 @@ using Random
 Random.seed!(2023)
 
 matplotlib.use("agg")
-include(srcdir("dummy_src_file.jl"))
 
 sim_name = "end2end-inv"
 exp_name = "compass"
