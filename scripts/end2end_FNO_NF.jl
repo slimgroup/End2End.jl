@@ -313,7 +313,7 @@ for j=1:niterations
     )
 
     ## save figure
-    fig_name = @strdict j λ nssample f0 dlogK logK_j g niterations nv nsrc nrec nv cut_area tstep factor n d fhistory mask
+    fig_name = @strdict j λ nssample f0 logK_j g niterations nv nsrc nrec nv cut_area tstep factor n d fhistory mask
 
     ## compute true and plot
     SNR = -2f1 * log10(norm(K-exp.(logK_j))/norm(K))
