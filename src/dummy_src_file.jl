@@ -1,4 +1,4 @@
-export VtoK, downsample, Patchy, jitter, box_logK, box_co2, box_v
+export VtoK, downsample, Patchy, jitter, box_logK, box_co2, box_v, dummy_JUDI_operation
 
 function VtoK(v::Matrix{T}, d::Tuple{T, T}; α::T=T(20)) where T
 
@@ -69,3 +69,40 @@ box_co2(x::AbstractArray{T}) where T = max.(min.(x,T(0.9)),T(0))
 box_co2(x::AbstractVector) = [box_co2(x[i]) for i = 1:length(x)]
 box_v(x::AbstractMatrix{T}; upper=4.6454024f0, lower=1.48f0) where T = max.(min.(x,T(upper)),T(lower))
 box_v(x::AbstractVector) = [box_v(x[i]) for i = 1:length(x)]
+
+function dummy_JUDI_operation()
+## grid size
+n = (20, 20)
+m = 1f0./1.5f0^2 * ones(Float32, n)
+d = (6., 6.)
+o = (0f0, 0f0)          # origin
+
+nsrc = 1       # num of sources
+nrec = 2      # num of receivers
+
+model = Model(n, d, o, m)
+
+timeS = timeR = 800f0               # recording time
+dtS = dtR = 4f0                     # recording time sampling rate
+
+xsrc = convertToCell(1f0)
+zsrc = convertToCell(0f0)
+xrec = range(1f0,2f0,length=nrec)
+zrec = range(1f0,2f0,length=nrec)
+ysrc = convertToCell(0f0)
+yrec = 0f0
+
+# set up src/rec geometry
+srcGeometry = Geometry(xsrc, ysrc, zsrc; dt=dtS, t=timeS)
+recGeometry = Geometry(xrec, yrec, zrec; dt=dtR, t=timeR, nsrc=nsrc)
+
+# set up source
+f0 = 0.02f0     # kHz
+wavelet = ricker_wavelet(timeS, dtS, f0)
+q = judiVector(srcGeometry, wavelet)
+
+# set up simulation operators
+F = judiModeling(model, srcGeometry, recGeometry)
+dobs = F * q
+return dobs
+end

@@ -4,13 +4,14 @@ using DrWatson
 @quickactivate "jutul-compass"
 
 using Pkg; Pkg.instantiate();
+using JUDI
+dummy_JUDI_operation()
 using JutulDarcyAD
 using LinearAlgebra
 using PyPlot
 using Flux
 using LineSearches
 using JLD2
-using JUDI
 using Statistics
 using Images
 using Random
@@ -135,7 +136,12 @@ T(x) = log.(KtoTrans(mesh, K1to3(exp.(x); kvoverkh=0.36)))
 
 logK = log.(K)
 
-@time state = Sjutul(T(logK), f)
+mkpath(datadir("flow-data"))
+if ~isfile(datadir("flow-data", "true_state.jld2"))
+    run(`wget https://www.dropbox.com/s/ts2wntxnqy1zqdr/'
+        'true_state.jld2 -q -O $(datadir("flow-data", "true_state.jld2"))`)
+end
+JLD2.@load datadir("flow-data", "true_state.jld2") state
 
 ### observed states
 nv = length(tstep)
@@ -265,7 +271,7 @@ lr_min = learning_rate*1f-2
 nssample = 4
 nbatches = div(nsrc, nssample)
 decay_rate = exp(log(lr_min/learning_rate)/niterations)
-opt = Flux.Optimiser(ExpDecay(learning_rate, decay_rate, 1, lr_min), Descent())
+opt = Flux.Optimiser(ExpDecay(learning_rate, decay_rate, 1, lr_min), Descent(1f0))
 λ = 0f0
 
 for j=1:niterations

@@ -4,13 +4,14 @@ using DrWatson
 @quickactivate "jutul-compass"
 
 using Pkg; Pkg.instantiate();
+using JUDI
+dummy_JUDI_operation()
 using JutulDarcyAD
 using LinearAlgebra
 using PyPlot
 using Flux
 using LineSearches
 using JLD2
-using JUDI
 using Statistics
 using Images
 using Random
@@ -233,7 +234,7 @@ lr_min = learning_rate*1f-2
 nssample = 4
 nbatches = div(nsrc, nssample)
 decay_rate = exp(log(lr_min/learning_rate)/niterations)
-opt = Flux.Optimiser(ExpDecay(learning_rate, decay_rate, 1, lr_min), Descent())
+opt = Flux.Optimiser(ExpDecay(learning_rate, decay_rate, 1, lr_min), Descent(1f0))
 
 for j=1:niterations
 
