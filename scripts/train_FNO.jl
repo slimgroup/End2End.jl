@@ -117,7 +117,7 @@ for ep = 1:epochs
 
     Flux.testmode!(NN, true);
 
-    Loss_valid[ep] = norm(clamp.(NN_save(x_valid), 0f0, 1f0) - y_valid)/norm(y_valid)
+    Loss_valid[ep] = mean([norm(clamp.(NN(x_valid[:, :, :, :, batch_size*(i-1)+1:batch_size*i]|>device), 0f0, 1f0) - (y_valid[:, :, :, batch_size*(i-1)+1:batch_size*i]|>device))/norm(y_valid[:, :, :, batch_size*(i-1)+1:batch_size*i]|>device) for i = 1:nbatches_valid])
     y_predict = clamp.(NN(x_plot |> device), 0f0, 1f0)   |> cpu
 
     fig = figure(figsize=(20, 12))
@@ -147,8 +147,6 @@ for ep = 1:epochs
 
     NN_save = NN |> cpu;
     w_save = Flux.params(NN_save)   
-
-    Loss_valid[ep] = mean([norm(clamp.(NN(x_valid[:, :, :, :, batch_size*(i-1)+1:batch_size*i]), 0f0, 1f0) - y_valid[:, :, :, batch_size*(i-1)+1:batch_size*i])/norm(y_valid[:, :, :, batch_size*(i-1)+1:batch_size*i]) for i = 1:nbatches_valid])
 
     loss_train = Loss[1:ep*nbatches]
     loss_valid = Loss_valid[1:ep]
