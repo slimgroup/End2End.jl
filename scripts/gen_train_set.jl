@@ -33,7 +33,7 @@ JLD2.@load datadir("v25-6.jld2") v;
 v6 = v./1f3;
 
 # downsample
-nsample = 2500
+nsample = 6000
 factor = 2
 n = (128, 1, 80)
 d = (12., 2000., 12.)

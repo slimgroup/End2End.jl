@@ -23,12 +23,12 @@ end
 Random.seed!(1234)
 
 # Define raw data directory
-data_path = datadir("gen_train/compass", "h=1086.0_irate=0.3_nsample=2500_ϕ=0.25.jld2")
-mkpath(datadir("gen_train","compass"))
+data_path = "/slimdata/zyin62/jutul-compass/h=1086.0_irate=0.3_nsample=6000_ϕ=0.25.jld2"
+mkpath("/slimdata/zyin62/jutul-compass")
 # Download the dataset into the data directory if it does not exist
 if ~isfile(data_path)
-    run(`wget https://www.dropbox.com/s/s6y6ndglk4pcme3/'
-        'h=1086.0_irate=0.3_nsample=2500_ϕ=0.25.jld2 -q -O $data_path`)
+    run(`wget https://www.dropbox.com/s/fnvpodx15j8hbrs/'
+        'h=1086.0_irate=0.3_nsample=6000_ϕ=0.25.jld2 -q -O $data_path`)
 end
 
 JLD2.@load data_path n d nsample tstep logKs conc
@@ -37,7 +37,7 @@ conc = Float32.(conc)
 
 nsamples = size(logKs, 3)
 
-ntrain = 2400
+ntrain = 5960
 nvalid = 40
 
 batch_size = 8
@@ -89,8 +89,11 @@ y_plot = y_valid[:, :, :, 1:1]
 sim_name = "3D_FNO"
 exp_name = "2phaseflow-jutul-compass"
 plot_path = plotsdir(sim_name, exp_name)
+save_path = joinpath("/slimdata/zyin62/jutul-compass/data/", sim_name, exp_name)
+mkpath(save_path)
 
 ## training
+save_network_every = 10
 
 for ep = 1:epochs
 
@@ -143,8 +146,7 @@ for ep = 1:epochs
     NN_save = NN |> cpu;
     w_save = Flux.params(NN_save)   
 
-    valid_idx = randperm(nvalid)[1:batch_size]
-    Loss_valid[ep] = norm(clamp.(NN_save(x_valid[:, :, :, :, valid_idx]), 0f0, 1f0) - y_valid[:, :, :, valid_idx])/norm(y_valid[:, :, :, valid_idx])
+    Loss_valid[ep] = norm(clamp.(NN_save(x_valid), 0f0, 1f0) - y_valid)/norm(y_valid)
 
     loss_train = Loss[1:ep*nbatches]
     loss_valid = Loss_valid[1:ep]
@@ -166,22 +168,13 @@ for ep = 1:epochs
     safesave(joinpath(plot_path, savename(fig_name; digits=6)*"_3Dfno_loss.png"), fig);
     close(fig); 
 
+    if mod(ep, save_network_every) == 0
     param_dict = @strdict ep NN_save w_save batch_size Loss modes width learning_rate epochs s n d nt dt AN ntrain nvalid loss_train loss_valid
     @tagsave(
-        datadir(sim_name, savename(param_dict, "jld2"; digits=6)),
+        joinpath(save_path, savename(param_dict, "jld2"; digits=6)),
         param_dict;
         safe=true
     )
+    end
     
 end
-
-NN_save = NN |> cpu
-w_save = params(NN_save)
-
-final_dict = @strdict Loss Loss_valid epochs NN_save w_save batch_size Loss modes width learning_rate epochs s n d nt dt AN ntrain nvalid
-
-@tagsave(
-    datadir(sim_name, savename(final_dict, "jld2"; digits=6)),
-    final_dict;
-    safe=true
-)
