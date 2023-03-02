@@ -109,7 +109,7 @@ for ep = 1:epochs
         x = x_train[:, :, :, :, idx_e[:,b]] |> device;
         y = y_train[:, :, :, idx_e[:,b]] |> device;
         grads = gradient(w) do
-            global loss = norm(clamp.(NN(x), 0f0, 1f0)-y)/norm(y)
+            global loss = norm(clamp.(NN(x), 0f0, 0.9f0)-y)/norm(y)
             return loss
         end
         Loss[(ep-1)*nbatches+b] = loss
@@ -120,8 +120,8 @@ for ep = 1:epochs
 
     Flux.testmode!(NN, true);
 
-    Loss_valid[ep] = mean([norm(clamp.(NN(x_valid[:, :, :, :, batch_size*(i-1)+1:batch_size*i]|>device), 0f0, 1f0) - (y_valid[:, :, :, batch_size*(i-1)+1:batch_size*i]|>device))/norm(y_valid[:, :, :, batch_size*(i-1)+1:batch_size*i]|>device) for i = 1:nbatches_valid])
-    y_predict = clamp.(NN(x_plot |> device), 0f0, 1f0)   |> cpu
+    Loss_valid[ep] = mean([norm(clamp.(NN(x_valid[:, :, :, :, batch_size*(i-1)+1:batch_size*i]|>device), 0f0, 0.9f0) - (y_valid[:, :, :, batch_size*(i-1)+1:batch_size*i]|>device))/norm(y_valid[:, :, :, batch_size*(i-1)+1:batch_size*i]|>device) for i = 1:nbatches_valid])
+    y_predict = clamp.(NN(x_plot |> device), 0f0, 0.9f0)   |> cpu
 
     fig = figure(figsize=(20, 12))
 
