@@ -172,7 +172,7 @@ for ep = 1:epochs
     close(fig); 
 
     if mod(ep, save_network_every) == 0
-    param_dict = @strdict ep NN_save w_save batch_size Loss modex modey modet width learning_rate epochs s n d nt dt AN ntrain nvalid loss_train loss_valid
+    param_dict = @strdict ep NN_save w_save batch_size Loss modex modez modet width learning_rate epochs s n d nt dt AN ntrain nvalid loss_train loss_valid
     @tagsave(
         joinpath(save_path, savename(param_dict, "jld2"; digits=6)),
         param_dict;
