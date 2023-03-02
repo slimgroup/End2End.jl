@@ -45,7 +45,10 @@ learning_rate = 1f-4
 
 epochs = 1000
 
-modes = [16, 16, 4]
+modex = 32
+modez = 32
+modet = 4
+modes = [modex, modez, modet]
 width = 20
 
 n = (n[1], n[end])
@@ -141,7 +144,7 @@ for ep = 1:epochs
 
     end
     tight_layout()
-    fig_name = @strdict ep batch_size Loss modes width learning_rate epochs s n d nt dt AN ntrain nvalid
+    fig_name = @strdict ep batch_size Loss modex modez modet width learning_rate epochs s n d nt dt AN ntrain nvalid
     safesave(joinpath(plot_path, savename(fig_name; digits=6)*"_3Dfno_fitting.png"), fig);
     close(fig)
 
@@ -169,7 +172,7 @@ for ep = 1:epochs
     close(fig); 
 
     if mod(ep, save_network_every) == 0
-    param_dict = @strdict ep NN_save w_save batch_size Loss modes width learning_rate epochs s n d nt dt AN ntrain nvalid loss_train loss_valid
+    param_dict = @strdict ep NN_save w_save batch_size Loss modex modey modet width learning_rate epochs s n d nt dt AN ntrain nvalid loss_train loss_valid
     @tagsave(
         joinpath(save_path, savename(param_dict, "jld2"; digits=6)),
         param_dict;
