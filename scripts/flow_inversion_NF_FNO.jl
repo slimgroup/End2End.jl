@@ -34,40 +34,33 @@ mkpath(datadir())
 mkpath(plotsdir())
 
 ## load FNO
-net_path_FNO = datadir("3D_FNO", "batch_size=8_dt=0.058824_ep=400_epochs=1000_learning_rate=0.0001_nt=18_ntrain=2400_nvalid=40_s=1_width=20.jld2")
+net_path_FNO = datadir("3D_FNO", "batch_size=8_dt=0.058824_ep=90_epochs=1000_learning_rate=0.0001_nt=18_ntrain=5960_nvalid=40_s=1_width=20.jld2")
 mkpath(datadir("3D_FNO"))
 
 # Download the dataset into the data directory if it does not exist
-if ~isfile(net_path_FNO )
-    run(`wget https://www.dropbox.com/s/3r3ol1gnblh3slf/'
-        'batch_size=8_dt=0.058824_ep=400_epochs=1000_learning_rate=0.0001_nt=18_ntrain=2400_nvalid=40_s=1_width=20.jld2 -q -O $net_path_FNO`)
+if ~isfile(net_path_FNO)
+        run(`wget https://www.dropbox.com/s/nb1df3ajqn5j0pz/'
+        'batch_size=8_dt=0.058824_ep=90_epochs=1000_learning_rate=0.0001_nt=18_ntrain=5960_nvalid=40_s=1_width=20.jld2 -q -O $net_path_FNO`)
 end
 
 net_dict_FNO = JLD2.jldopen(net_path_FNO, "r")
 NN = net_dict_FNO["NN_save"];
 AN = net_dict_FNO["AN"];
-grid = gen_grid(net_dict_FNO["n"], net_dict_FNO["d"], net_dict_FNO["nt"], net_dict_FNO["dt"]);
+grid_ = gen_grid(net_dict_FNO["n"], net_dict_FNO["d"], net_dict_FNO["nt"], net_dict_FNO["dt"]);
 Flux.testmode!(NN, true);
 
-function perm_to_tensor_(x_perm::AbstractMatrix{Float32},grid::Array{Float32,4},AN::ActNorm)
-    # input nx*ny, output nx*ny*nt*4*1
-    nx, ny, nt, _ = size(grid)
-    return cat(reshape(cat([AN.s.data[1].*(reshape(x_perm, nx, ny, 1, 1))[:,:,1,1].+AN.b.data for i = 1:nt]..., dims=3), nx, ny, nt, 1, 1),
-    reshape(grid, nx, ny, nt, 3, 1), dims=4)
-end
-
 function S(x)
-    return clamp.(NN(perm_to_tensor_(x, grid, AN)), 0f0, 0.9f0);
+    return clamp.(NN(perm_to_tensor(x, grid_, AN)), 0f0, 0.9f0);
 end
 
 ## load NF
-net_path = datadir("trained-NF", "clip_norm=5.0_depth=5_e=30_lr=0.0002_nc_hidden=512_nscales=4_ntrain=10000_nx=128_ny=80_α=0.1_αmin=0.01.jld2")
+net_path = datadir("trained-NF", "clip_norm=10.0_depth=5_e=134_lr=0.0001_nc_hidden=512_normal_max=-27.238718_normal_min=-31.556208_nscales=4_ntrain=20480_nx=128_ny=80_α=0.05_αmin=0.001.jld2")
 mkpath(datadir("trained-NF"))
 
 # Download the dataset into the data directory if it does not exist
 if ~isfile(net_path)
-    run(`wget https://www.dropbox.com/s/fc22lk28u5z2d04/'
-        'clip_norm=5.0_depth=5_e=30_lr=0.0002_nc_hidden=512_nscales=4_ntrain=10000_nx=128_ny=80_α=0.1_αmin=0.01.jld2 -q -O $net_path`)
+        run(`wget https://www.dropbox.com/s/qd50ali3dy11oum/'
+        'clip_norm=10.0_depth=5_e=134_lr=0.0001_nc_hidden=512_normal_max=-27.238718_normal_min=-31.556208_nscales=4_ntrain=20480_nx=128_ny=80_α=0.05_αmin=0.001.jld2 -q -O $net_path`)
 end
 
 network_dict = JLD2.jldopen(net_path, "r");
@@ -85,9 +78,14 @@ opts = GlowOptions(; cl_activation=SigmoidNewLayer(0.5f0),
 G = Glow(1, network_dict["nc_hidden"], network_dict["depth"], network_dict["nscales"]; logdet=false, opt=opts) #|> gpu
 set_params!(G, Params);
 
+normal_min = network_dict["normal_min"]
+normal_max = network_dict["normal_max"]
+@. normal(x; normal_min=normal_min, normal_max=normal_max) = (x-normal_min)/(normal_max-normal_min)
+@. invnormal(x; normal_min=normal_min, normal_max=normal_max) = x*(normal_max-normal_min)+normal_min
+
 # check generative samples are good so that loading went well. 
 G.forward(randn(Float32,network_dict["nx"],network_dict["ny"],1,1));
-gen = G.inverse(randn(Float32,network_dict["nx"],network_dict["ny"],1,1));
+gen = invnormal(G.inverse(randn(Float32,network_dict["nx"],network_dict["ny"],1,1)));
 
 # generator now
 G = G |> device;
@@ -137,7 +135,16 @@ T(x) = log.(KtoTrans(mesh, K1to3(exp.(x); kvoverkh=0.36)))
 
 logK = log.(K)
 
-@time state = Sjutul(T(logK), q)
+seal_mask = Kh.==1e-3
+set_seal(x::AbstractMatrix{T}) where T = x .* convert(typeof(x), (T(1) .- T.(seal_mask))) + convert(typeof(x), T(log(1e-3*md)) * T.(seal_mask))
+
+# Download the dataset into the data directory if it does not exist
+mkpath(datadir("flow-data"))
+if ~isfile(datadir("flow-data", "true_state.jld2"))
+    run(`wget https://www.dropbox.com/s/ts2wntxnqy1zqdr/'
+        'true_state.jld2 -q -O $(datadir("flow-data", "true_state.jld2"))`)
+end
+JLD2.@load datadir("flow-data", "true_state.jld2") state
 
 #### inversion
 ls = BackTracking(order=3, iterations=10)
@@ -146,26 +153,40 @@ ls = BackTracking(order=3, iterations=10)
 niterations = 500
 fhistory = zeros(niterations)
 
-logK0 = deepcopy(logK)
-logK0[v.>3.5] .= mean(logK[v.>3.5])
-z = G.inverse(reshape(Float32.(logK0), ns[1], ns[end], 1, 1)|>device)
-λ = 2f0
-# ADAM-W algorithm
-lower, upper = log(1e-4*md), log(1500*md)
-box_logK(x::AbstractArray{T}) where T = max.(min.(x,T(upper)),T(lower))
+function VtoK_nowater(v::Matrix{T}, d::Tuple{T, T}; α::T=T(20)) where T
 
-# ADAM-W algorithm
-learning_rate = 1f-1
-opt = Flux.Optimise.ADAMW(learning_rate, (0.9f0, 0.999f0), 1f-4)
+    n = size(v)
+    idx_ucfmt = find_water_bottom((v.-T(3.5)).*(v.>T(3.5)))
+
+    return vcat([vcat(
+        α * exp.(v[i,1:idx_ucfmt[i]-1]) .- α*exp(T(1.48)),
+        α*exp.(v[i,idx_ucfmt[i]:end])  .- α*exp(T(3.5)))' for i = 1:n[1]]...)
+end
+
+logK0 = log.(VtoK_nowater(v, (d[1], d[end])).*md)
+logK0[v.>3.5] .= mean(logK[v.>3.5])
+logK0 = max.(logK0, log(20*md))
+
+z = G.inverse(normal(reshape(Float32.(logK0), ns[1], ns[end], 1, 1)) |> device)
+z = randn(Float32, ns[1], ns[end], 1, 1) |> device
+λ = 1f0
+
+# GD algorithm
+learning_rate = 1f-7
+lr_min = learning_rate*1f-2
+decay_rate = exp(log(lr_min/learning_rate)/niterations)
+opt = Flux.Optimiser(ExpDecay(learning_rate, decay_rate, 1, lr_min), Descent(1f0))
 
 ctrue = state[1:length(tstep)*prod(n)] |> device
-NN = NN |> device
-AN = AN |> device
-z = z |> device
-init_misfit = norm(vec(S(box_logK(G(z)[:,:,1,1]))[:,:,1:15,1])-ctrue)^2
-f(z) = .5 * norm(vec(S(box_logK(G(z)[:,:,1,1]))[:,:,1:15,1])-ctrue)^2/init_misfit + .5f0 * λ^2f0 * norm(z)^2f0/length(z) 
-
-logK_init = box_logK(G(z)[:,:,1,1])
+NN = NN |> device;
+AN = AN |> device;
+z = z |> device;
+#init_misfit = norm(vec(S(box_logK(set_seal(invnormal(G(z)[:,:,1,1]))))[:,:,1:15,1])-ctrue)^2
+noise = vec(S(Float32.(logK)|>device)[:,:,1:15,1])-ctrue
+σ = Float32.(norm(noise)/sqrt(length(noise)))
+#f(z) = .5 * norm(vec(S(box_logK(set_seal(invnormal(G(z)[:,:,1,1]))))[:,:,1:15,1])-ctrue)^2/init_misfit + .5f0 * λ^2f0 * norm(z)^2f0/length(z) 
+f(z) = .5 * norm(vec(S(box_logK(set_seal(invnormal(G(z)[:,:,1,1]))))[:,:,1:15,1])-ctrue)^2/σ^2f0 + .5f0 * λ^2f0 * norm(z)^2f0
+logK_init = box_logK(set_seal(invnormal(G(z)[:,:,1,1])))
 @time state_init = S(logK_init)
 
 for j=1:niterations
@@ -176,18 +197,18 @@ for j=1:niterations
     
     println("Inversion iteration no: ",j,"; function value: ",fval)
 
-    fig_name = @strdict j n d ϕ z tstep irate niterations lower upper inj_loc λ
+    fig_name = @strdict j n d ϕ z tstep irate niterations inj_loc λ
 
-    logK0 = box_logK(G(z)[:,:,1,1])
+    logK0 = box_logK(set_seal(invnormal(G(z)[:,:,1,1])))
 
     ### plotting
     fig=figure(figsize=(20,12));
     subplot(1,3,1);
-    imshow(exp.(logK)'./md, vmin=minimum(exp.(logK))./md, vmax=maximum(exp.(logK)./md)); colorbar(); title("true permeability")
+    imshow(exp.(logK)'./md, norm=matplotlib.colors.LogNorm(vmin=200, vmax=maximum(exp.(logK)./md))); colorbar(); title("true permeability")
     subplot(1,3,2);
-    imshow(exp.(logK0|>cpu)'./md, vmin=minimum(exp.(logK))./md, vmax=maximum(exp.(logK)./md)); colorbar(); title("inverted permeability")
+    imshow(exp.(logK0|>cpu)'./md, norm=matplotlib.colors.LogNorm(vmin=200, vmax=maximum(exp.(logK)./md))); colorbar(); title("inverted permeability")
     subplot(1,3,3);
-    imshow(exp.(logK)'./md.-exp.(logK0|>cpu)'./md, vmin=minimum(exp.(logK)), vmax=maximum(exp.(logK)./md)); colorbar(); title("diff")
+    imshow(abs.(exp.(logK)'./md.-exp.(logK0|>cpu)'./md), norm=matplotlib.colors.LogNorm(vmin=200, vmax=maximum(exp.(logK)./md))); colorbar(); title("diff")
     suptitle("Flow Inversion at iter $j")
     tight_layout()
     safesave(joinpath(plotsdir(sim_name, exp_name), savename(fig_name; digits=6)*"_diff.png"), fig);

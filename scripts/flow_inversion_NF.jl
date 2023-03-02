@@ -26,14 +26,15 @@ exp_name = "compass-NF"
 mkpath(datadir())
 mkpath(plotsdir())
 
+
 ## load NF
-net_path = datadir("trained-NF", "clip_norm=5.0_depth=5_e=30_lr=0.0002_nc_hidden=512_nscales=4_ntrain=10000_nx=128_ny=80_α=0.1_αmin=0.01.jld2")
+net_path = datadir("trained-NF", "clip_norm=10.0_depth=5_e=134_lr=0.0001_nc_hidden=512_normal_max=-27.238718_normal_min=-31.556208_nscales=4_ntrain=20480_nx=128_ny=80_α=0.05_αmin=0.001.jld2")
 mkpath(datadir("trained-NF"))
 
 # Download the dataset into the data directory if it does not exist
 if ~isfile(net_path)
-    run(`wget https://www.dropbox.com/s/fc22lk28u5z2d04/'
-        'clip_norm=5.0_depth=5_e=30_lr=0.0002_nc_hidden=512_nscales=4_ntrain=10000_nx=128_ny=80_α=0.1_αmin=0.01.jld2 -q -O $net_path`)
+        run(`wget https://www.dropbox.com/s/qd50ali3dy11oum/'
+        'clip_norm=10.0_depth=5_e=134_lr=0.0001_nc_hidden=512_normal_max=-27.238718_normal_min=-31.556208_nscales=4_ntrain=20480_nx=128_ny=80_α=0.05_αmin=0.001.jld2 -q -O $net_path`)
 end
 
 network_dict = JLD2.jldopen(net_path, "r");
@@ -51,9 +52,14 @@ opts = GlowOptions(; cl_activation=SigmoidNewLayer(0.5f0),
 G = Glow(1, network_dict["nc_hidden"], network_dict["depth"], network_dict["nscales"]; logdet=false, opt=opts) #|> gpu
 set_params!(G, Params);
 
+normal_min = network_dict["normal_min"]
+normal_max = network_dict["normal_max"]
+@. normal(x; normal_min=normal_min, normal_max=normal_max) = (x-normal_min)/(normal_max-normal_min)
+@. invnormal(x; normal_min=normal_min, normal_max=normal_max) = x*(normal_max-normal_min)+normal_min
+
 # check generative samples are good so that loading went well. 
 G.forward(randn(Float32,network_dict["nx"],network_dict["ny"],1,1));
-gen = G.inverse(randn(Float32,network_dict["nx"],network_dict["ny"],1,1));
+gen = invnormal(G.inverse(randn(Float32,network_dict["nx"],network_dict["ny"],1,1)));
 
 # generator now
 G = reverse(G);
@@ -104,30 +110,46 @@ logK = log.(K)
 
 @time state = S(T(logK), q)
 
-#### inversion
-ls = BackTracking(order=3, iterations=10)
+seal_mask = Kh.==1e-3
+set_seal(x::AbstractMatrix{T}) where T = x .* convert(typeof(x), (T(1) .- T.(seal_mask))) + convert(typeof(x), T(log(1e-3*md)) * T.(seal_mask))
 
 # Main loop
-niterations = 100
+niterations = 500
 fhistory = zeros(niterations)
 
-logK0 = deepcopy(logK)
+function VtoK_nowater(v::Matrix{T}, d::Tuple{T, T}; α::T=T(20)) where T
+
+    n = size(v)
+    idx_ucfmt = find_water_bottom((v.-T(3.5)).*(v.>T(3.5)))
+
+    return vcat([vcat(
+        α * exp.(v[i,1:idx_ucfmt[i]-1]) .- α*exp(T(1.48)),
+        α*exp.(v[i,idx_ucfmt[i]:end])  .- α*exp(T(3.5)))' for i = 1:n[1]]...)
+end
+
+logK0 = log.(VtoK_nowater(v, (d[1], d[end])).*md)
 logK0[v.>3.5] .= mean(logK[v.>3.5])
-z = G.inverse(reshape(Float32.(logK0), ns[1], ns[end], 1, 1))
-λ = 1f0
-# ADAM-W algorithm
-lower, upper = log(1e-4*md), log(1500*md)
-box_logK(x::AbstractArray{T}) where T = max.(min.(x,T(upper)),T(lower))
+logK0 = max.(logK0, log(20*md))
 
-# ADAM-W algorithm
+z = G.inverse(normal(reshape(Float32.(logK0), ns[1], ns[end], 1, 1)))
+z = 0 * z
+λ = 0f0
+
+# GD algorithm
 learning_rate = 1f-1
-opt = Flux.Optimise.ADAMW(learning_rate, (0.9f0, 0.999f0), 1f-4)
+lr_min = learning_rate*1f-2
+decay_rate = exp(log(lr_min/learning_rate)/niterations)
+opt = Flux.Optimiser(ExpDecay(learning_rate, decay_rate, 1, lr_min), Descent(1f0))
 
-niterations = 100
-init_misfit = norm(S(T(box_logK(Float64.(G(z)[:,:,1,1]))),q)[1:length(tstep)*prod(n)]-state[1:length(tstep)*prod(n)])^2
-f(z) = .5 * norm(S(T(box_logK(Float64.(G(z)[:,:,1,1]))),q)[1:length(tstep)*prod(n)]-state[1:length(tstep)*prod(n)])^2/init_misfit + .5f0 * λ^2f0 * norm(z)^2f0/length(z) 
+ctrue = state[1:length(tstep)*prod(n)]
+init_misfit = norm(S(T(box_logK(set_seal(invnormal(Float64.(G(z))[:,:,1,1])))), q)[1:length(tstep)*prod(n)]-ctrue)^2
+function f(z)
+    global logK_j = box_logK(set_seal(invnormal(Float64.(G(z))[:,:,1,1])))
+    global c_j = S(T(logK_j), q)
+    return .5 * norm(c_j[1:length(tstep)*prod(n)]-ctrue)^2/init_misfit + .5f0 * λ^2f0 * norm(z)^2f0/length(z) 
+end
 
-logK_init = box_logK(Float64.(G(z)[:,:,1,1]))
+logK_init = box_logK(set_seal(invnormal(Float64.(G(z))[:,:,1,1])))
 @time state_init = S(T(logK_init), q)
 
 for j=1:niterations
@@ -138,27 +160,20 @@ for j=1:niterations
     
     println("Inversion iteration no: ",j,"; function value: ",fval)
 
-    box_logK(Float64.(G(z)[:,:,1,1]))
-
-    fig_name = @strdict j n d ϕ z tstep irate niterations lower upper inj_loc λ
-
-    logK0 = box_logK(Float64.(G(z)[:,:,1,1]))
-    state_predict = S(T(logK0), q)
+    fig_name = @strdict j n d ϕ z tstep irate niterations inj_loc λ
 
     ### plotting
     fig=figure(figsize=(20,12));
     subplot(1,3,1);
-    imshow(exp.(logK)'./md, vmin=minimum(exp.(logK))./md, vmax=maximum(exp.(logK)./md)); colorbar(); title("true permeability")
+    imshow(exp.(logK)'./md, norm=matplotlib.colors.LogNorm(vmin=200, vmax=maximum(exp.(logK)./md))); colorbar(); title("true permeability")
     subplot(1,3,2);
-    imshow(exp.(logK0)'./md, vmin=minimum(exp.(logK))./md, vmax=maximum(exp.(logK)./md)); colorbar(); title("inverted permeability")
+    imshow(exp.(logK_j)'./md, norm=matplotlib.colors.LogNorm(vmin=200, vmax=maximum(exp.(logK)./md))); colorbar(); title("inverted permeability")
     subplot(1,3,3);
-    imshow(exp.(logK)'./md.-exp.(logK0)'./md, vmin=minimum(exp.(logK)), vmax=maximum(exp.(logK)./md)); colorbar(); title("diff")
+    imshow(abs.(exp.(logK)'./md.-exp.(logK_j)'./md), norm=matplotlib.colors.LogNorm(vmin=200, vmax=maximum(exp.(logK)./md))); colorbar(); title("diff")
     suptitle("Flow Inversion at iter $j")
     tight_layout()
     safesave(joinpath(plotsdir(sim_name, exp_name), savename(fig_name; digits=6)*"_diff.png"), fig);
     close(fig)
-
-    state_predict = S(T(logK0), q)
 
     ## data fitting
     fig = figure(figsize=(20,12));
@@ -170,10 +185,10 @@ for j=1:niterations
         imshow(reshape(Saturations(state.states[3*i]), n[1], n[end])', vmin=0, vmax=0.9); colorbar();
         title("true at snapshot $(3*i)")
         subplot(4,5,i+10);
-        imshow(reshape(Saturations(state_predict.states[3*i]), n[1], n[end])', vmin=0, vmax=0.9); colorbar();
+        imshow(reshape(Saturations(c_j.states[3*i]), n[1], n[end])', vmin=0, vmax=0.9); colorbar();
         title("predict at snapshot $(3*i)")
         subplot(4,5,i+15);
-        imshow(5*abs.(reshape(Saturations(state.states[3*i]), n[1], n[end])'-reshape(Saturations(state_predict.states[3*i]), n[1], n[end])'), vmin=0, vmax=0.9); colorbar();
+        imshow(5*abs.(reshape(Saturations(state.states[3*i]), n[1], n[end])'-reshape(Saturations(c_j.states[3*i]), n[1], n[end])'), vmin=0, vmax=0.9); colorbar();
         title("5X diff at snapshot $(3*i)")
     end
     suptitle("Flow Inversion at iter $j")

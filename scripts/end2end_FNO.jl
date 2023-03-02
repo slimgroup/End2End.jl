@@ -36,31 +36,21 @@ mkpath(datadir())
 mkpath(plotsdir())
 
 ## load FNO
-net_path_FNO = datadir("3D_FNO", "batch_size=8_dt=0.058824_ep=400_epochs=1000_learning_rate=0.0001_nt=18_ntrain=2400_nvalid=40_s=1_width=20.jld2")
+net_path_FNO = datadir("3D_FNO", "batch_size=8_dt=0.058824_ep=230_epochs=1000_learning_rate=0.0001_modet=4_modex=32_modez=32_nt=18_ntrain=5960_nvalid=40_s=1_width=20.jld2")
 mkpath(datadir("3D_FNO"))
 
 # Download the dataset into the data directory if it does not exist
-if ~isfile(net_path_FNO )
-    run(`wget https://www.dropbox.com/s/3r3ol1gnblh3slf/'
-        'batch_size=8_dt=0.058824_ep=400_epochs=1000_learning_rate=0.0001_nt=18_ntrain=2400_nvalid=40_s=1_width=20.jld2 -q -O $net_path_FNO`)
+if ~isfile(net_path_FNO)
+        run(`wget https://www.dropbox.com/s/0mgwmvsarv2a5lk/'
+        'batch_size=8_dt=0.058824_ep=230_epochs=1000_learning_rate=0.0001_modet=4_modex=32_modez=32_nt=18_ntrain=5960_nvalid=40_s=1_width=20.jld2 -q -O $net_path_FNO`)
 end
 
 net_dict_FNO = JLD2.jldopen(net_path_FNO, "r")
 NN = net_dict_FNO["NN_save"];
 AN = net_dict_FNO["AN"];
-grid = gen_grid(net_dict_FNO["n"], net_dict_FNO["d"], net_dict_FNO["nt"], net_dict_FNO["dt"]);
+grid_ = gen_grid(net_dict_FNO["n"], net_dict_FNO["d"], net_dict_FNO["nt"], net_dict_FNO["dt"]);
 Flux.testmode!(NN, true);
-
-function perm_to_tensor_(x_perm::AbstractMatrix{Float32},grid::Array{Float32,4},AN::ActNorm)
-    # input nx*ny, output nx*ny*nt*4*1
-    nx, ny, nt, _ = size(grid)
-    return cat(reshape(cat([AN.s.data[1].*(reshape(x_perm, nx, ny, 1, 1))[:,:,1,1].+AN.b.data for i = 1:nt]..., dims=3), nx, ny, nt, 1, 1),
-    reshape(grid, nx, ny, nt, 3, 1), dims=4)
-end
-
-function S(x)
-    return clamp.(NN(perm_to_tensor_(x, grid, AN)), 0f0, 0.9f0)[:,:,1:15,1];
-end
+S(x) = clamp.(NN(perm_to_tensor(x, grid_, AN)), 0f0, 0.9f0);
 
 ## grid size
 JLD2.@load datadir("BGCompass_tti_625m.jld2") m d rho;
@@ -104,7 +94,13 @@ T(x) = log.(KtoTrans(mesh, K1to3(exp.(x); kvoverkh=0.36)))
 
 logK = log.(K)
 
-@time state = Sjutul(T(logK), f)
+# Download the dataset into the data directory if it does not exist
+mkpath(datadir("flow-data"))
+if ~isfile(datadir("flow-data", "true_state.jld2"))
+    run(`wget https://www.dropbox.com/s/ts2wntxnqy1zqdr/'
+        'true_state.jld2 -q -O $(datadir("flow-data", "true_state.jld2"))`)
+end
+JLD2.@load datadir("flow-data", "true_state.jld2") state
 
 ### observed states
 nv = length(tstep)
@@ -229,8 +225,8 @@ logK_init = deepcopy(logK0)
 y_init = box_co2(M(O(S(logK_init))))
 
 # GD algorithm
-learning_rate = 3.75f0
-lr_min = learning_rate*1f-2
+learning_rate = 3f0
+lr_min = learning_rate*1f-3
 nssample = 4
 nbatches = div(nsrc, nssample)
 decay_rate = exp(log(lr_min/learning_rate)/niterations)
@@ -252,8 +248,10 @@ for j=1:niterations
 
     # objective function for inversion
     function obj(dlogK)
-        c = box_co2(M(O(S(box_logK(logK0+mask[end].*dlogK))))); v = R(pad(c)); v_up = box_v(v); dpred = F(v_up);
-        fval = .5f0 * norm(dpred-dobs)^2f0/nssample/nv
+        global logK_j = box_logK(logK0+mask[end].*dlogK)
+        global c_j = box_co2(M(O(S(logK_j))))
+        global dpred_j = F(box_v(R(pad(c_j))))
+        fval = .5f0 * norm(dpred_j-dobs)^2f0/nssample/nv
         @show fval
         return fval
     end
@@ -263,10 +261,6 @@ for j=1:niterations
     Flux.Optimise.update!(opt, dlogK, g)
     fhistory[j] = fval
     println("Inversion iteration no: ",j,"; function value: ", fhistory[j])
-
-    ### plotting
-    logK0now = box_logK(logK0+mask[end].*dlogK);
-    y_predict = box_co2(M(O(S(logK0now))));
 
     ### save intermediate results
     save_dict = @strdict j nssample f0 dlogK logK0 g niterations nv nsrc nrec nv cut_area tstep factor n d fhistory mask
@@ -280,16 +274,16 @@ for j=1:niterations
     fig_name = @strdict j nssample f0 dlogK logK0 niterations nv nsrc nrec nv cut_area tstep factor n d fhistory mask
 
     ## compute true and plot
-    SNR = -2f1 * log10(norm(K-exp.(logK0now))/norm(K))
+    SNR = -2f1 * log10(norm(K-exp.(logK_j))/norm(K))
     fig = figure(figsize=(20,12));
     subplot(2,2,1);
-    imshow(exp.(logK0now)'./md,vmin=0,vmax=maximum(K/md));title("inversion by NN, $(j) iter");colorbar();
+    imshow(exp.(logK_j)'./md, norm=matplotlib.colors.LogNorm(vmin=200, vmax=maximum(exp.(logK)./md)));title("inversion by NN, $(j) iter");colorbar();
     subplot(2,2,2);
-    imshow(K'./md,vmin=0,vmax=maximum(K/md));title("GT permeability");colorbar();
+    imshow(K'./md, norm=matplotlib.colors.LogNorm(vmin=200, vmax=maximum(exp.(logK)./md)));title("GT permeability");colorbar();
     subplot(2,2,3);
-    imshow(exp.(logK_init)'./md,vmin=0,vmax=maximum(K/md));title("initial permeability");colorbar();
+    imshow(exp.(logK_init)'./md, norm=matplotlib.colors.LogNorm(vmin=200, vmax=maximum(exp.(logK)./md)));title("initial permeability");colorbar();
     subplot(2,2,4);
-    imshow(abs.(K'-exp.(logK0now)')./md,vmin=0,vmax=maximum(K/md));title("abs error, SNR=$SNR");colorbar();
+    imshow(abs.(K'-exp.(logK_j)')./md, norm=matplotlib.colors.LogNorm(vmin=200, vmax=maximum(exp.(logK)./md)));title("abs error, SNR=$SNR");colorbar();
     suptitle("End-to-end Inversion at iter $j")
     tight_layout()
     safesave(joinpath(plotsdir(sim_name, exp_name), savename(fig_name; digits=6)*"_K.png"), fig);
@@ -313,10 +307,10 @@ for j=1:niterations
         imshow(sw_true[3*i]', vmin=0, vmax=1);
         title("true at snapshot $(3*i)")
         subplot(4,5,i+10);
-        imshow(y_predict[3*i]', vmin=0, vmax=1);
+        imshow(c_j[3*i]', vmin=0, vmax=1);
         title("predict at snapshot $(3*i)")
         subplot(4,5,i+15);
-        imshow(5*abs.(sw_true[3*i]'-y_predict[3*i]'), vmin=0, vmax=1);
+        imshow(5*abs.(sw_true[3*i]'-c_j[3*i]'), vmin=0, vmax=1);
         title("5X diff at snapshot $(3*i)")
     end
     suptitle("End-to-end Inversion at iter $j")

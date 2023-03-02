@@ -212,7 +212,7 @@ learning_rate = 125f0
 lr_min = learning_rate*1f-2
 nssample = 4
 nbatches = div(nsrc, nssample)
-decay_rate = exp(log(lr_min/learning_rate)/(niterations*nbatches))
+decay_rate = exp(log(lr_min/learning_rate)/niterations)
 opt = Flux.Optimiser(ExpDecay(learning_rate, decay_rate, 1, lr_min), Descent(1f0))
 
 for j=1:niterations

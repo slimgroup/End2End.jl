@@ -23,23 +23,23 @@ mkpath(datadir())
 mkpath(plotsdir())
 
 ## load FNO
-net_path = datadir("3D_FNO", "batch_size=8_dt=0.058824_ep=400_epochs=1000_learning_rate=0.0001_nt=18_ntrain=2400_nvalid=40_s=1_width=20.jld2")
+net_path_FNO = datadir("3D_FNO", "batch_size=8_dt=0.058824_ep=230_epochs=1000_learning_rate=0.0001_modet=4_modex=32_modez=32_nt=18_ntrain=5960_nvalid=40_s=1_width=20.jld2")
 mkpath(datadir("3D_FNO"))
 
 # Download the dataset into the data directory if it does not exist
-if ~isfile(net_path)
-    run(`wget https://www.dropbox.com/s/3r3ol1gnblh3slf/'
-        'batch_size=8_dt=0.058824_ep=400_epochs=1000_learning_rate=0.0001_nt=18_ntrain=2400_nvalid=40_s=1_width=20.jld2 -q -O $net_path`)
+if ~isfile(net_path_FNO)
+        run(`wget https://www.dropbox.com/s/0mgwmvsarv2a5lk/'
+        'batch_size=8_dt=0.058824_ep=230_epochs=1000_learning_rate=0.0001_modet=4_modex=32_modez=32_nt=18_ntrain=5960_nvalid=40_s=1_width=20.jld2 -q -O $net_path_FNO`)
 end
 
-net_dict = JLD2.jldopen(net_path, "r")
-NN = net_dict["NN_save"];
-AN = net_dict["AN"];
-grid = gen_grid(net_dict["n"], net_dict["d"], net_dict["nt"], net_dict["dt"]);
+net_dict_FNO = JLD2.jldopen(net_path_FNO, "r")
+NN = net_dict_FNO["NN_save"];
+AN = net_dict_FNO["AN"];
+grid_ = gen_grid(net_dict_FNO["n"], net_dict_FNO["d"], net_dict_FNO["nt"], net_dict_FNO["dt"]);
 Flux.testmode!(NN, true);
 
 function S(x)
-    return clamp.(NN(perm_to_tensor(x, grid, AN)), 0f0, 0.9f0);
+    return clamp.(NN(perm_to_tensor(x, grid_, AN)), 0f0, 0.9f0);
 end
 
 ## grid size
@@ -112,48 +112,36 @@ logK_init = deepcopy(logK0)
 @time state_init = S(Float32.(logK_init));
 
 ctrue = state[1:length(tstep)*prod(n)]
-f(logK) = .5 * norm(vec(S(logK)[:,:,1:15,1])-ctrue)^2
-ls = BackTracking(order=3, iterations=10)
-
-lower, upper = Float32(log(1e-4*md)), Float32(log(1500*md))
-box_logK(x::AbstractArray{T}) where T = max.(min.(x,T(upper)),T(lower))
 prj = box_logK
+f(logK) = .5 * norm(vec(S(prj(logK))[:,:,1:15,1])-ctrue)^2
 
 # Main loop
 niterations = 100
 fhistory = zeros(Float32,niterations)
 
+# GD algorithm
+learning_rate = 0.02f0
+lr_min = learning_rate*1f-2
+decay_rate = exp(log(lr_min/learning_rate)/niterations)
+opt = Flux.Optimiser(ExpDecay(learning_rate, decay_rate, 1, lr_min), Descent(1f0))
+
 for j=1:niterations
 
     @time fval, gs = Flux.withgradient(() -> f(logK0), Flux.params(logK0));
     g = gs[logK0]
-    p = -g/norm(g, Inf)
-    
-    println("Inversion iteration no: ",j,"; function value: ",fval)
     fhistory[j] = fval
+    Flux.Optimise.update!(opt, logK0, g)
 
-    # linesearch
-    function f_(α)
-        misfit = f(prj(Float32.(logK0 .+ α * p)))
-        @show α, misfit
-        return misfit
-    end
-
-    step, fval = ls(f_, 1f-1, fval, dot(g, p))
-
-    # Update model and bound projection
-    global logK0 = prj(Float32.(logK0 .+ step * p))
-
-    fig_name = @strdict j n d ϕ logK0 tstep irate niterations lower upper inj_loc
+    fig_name = @strdict j n d ϕ logK0 tstep irate niterations inj_loc
 
     ### plotting
     fig=figure(figsize=(20,12));
     subplot(1,3,1);
-    imshow(exp.(logK)'./md, vmin=minimum(exp.(logK))./md, vmax=maximum(exp.(logK)./md)); colorbar(); title("true permeability")
+    imshow(exp.(logK)'./md, norm=matplotlib.colors.LogNorm(vmin=200, vmax=maximum(exp.(logK)./md))); colorbar(); title("true permeability")
     subplot(1,3,2);
-    imshow(exp.(logK0)'./md, vmin=minimum(exp.(logK))./md, vmax=maximum(exp.(logK)./md)); colorbar(); title("inverted permeability")
+    imshow(exp.(prj(logK0))'./md, norm=matplotlib.colors.LogNorm(vmin=200, vmax=maximum(exp.(logK)./md))); colorbar(); title("inverted permeability")
     subplot(1,3,3);
-    imshow(exp.(logK)'./md.-exp.(logK0)'./md, vmin=minimum(exp.(logK)), vmax=maximum(exp.(logK)./md)); colorbar(); title("diff")
+    imshow(abs.(exp.(logK)'./md.-exp.(prj(logK0))'./md), norm=matplotlib.colors.LogNorm(vmin=200, vmax=maximum(exp.(logK)./md))); colorbar(); title("diff")
     suptitle("Flow Inversion at iter $j")
     tight_layout()
     safesave(joinpath(plotsdir(sim_name, exp_name), savename(fig_name; digits=6)*"_diff.png"), fig);
