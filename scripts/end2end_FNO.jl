@@ -225,7 +225,7 @@ logK_init = deepcopy(logK0)
 y_init = box_co2(M(O(S(logK_init))))
 
 # GD algorithm
-learning_rate = 3f0
+learning_rate = 5f0
 lr_min = learning_rate*1f-3
 nssample = 4
 nbatches = div(nsrc, nssample)
