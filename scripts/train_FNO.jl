@@ -45,9 +45,9 @@ learning_rate = 1f-4
 
 epochs = 1000
 
-modex = 32
-modez = 32
-modet = 4
+modex = 16
+modez = 16
+modet = 9
 modes = [modex, modez, modet]
 width = 20
 
