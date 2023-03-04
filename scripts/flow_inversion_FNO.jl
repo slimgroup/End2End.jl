@@ -23,13 +23,13 @@ mkpath(datadir())
 mkpath(plotsdir())
 
 ## load FNO
-net_path_FNO = datadir("3D_FNO", "batch_size=8_dt=0.058824_ep=230_epochs=1000_learning_rate=0.0001_modet=4_modex=32_modez=32_nt=18_ntrain=5960_nvalid=40_s=1_width=20.jld2")
+net_path_FNO = datadir("3D_FNO", "batch_size=8_dt=0.058824_ep=70_epochs=1000_learning_rate=0.0001_modet=9_modex=16_modez=16_nt=18_ntrain=5960_nvalid=40_s=1_width=20.jld2")
 mkpath(datadir("3D_FNO"))
 
 # Download the dataset into the data directory if it does not exist
 if ~isfile(net_path_FNO)
-        run(`wget https://www.dropbox.com/s/0mgwmvsarv2a5lk/'
-        'batch_size=8_dt=0.058824_ep=230_epochs=1000_learning_rate=0.0001_modet=4_modex=32_modez=32_nt=18_ntrain=5960_nvalid=40_s=1_width=20.jld2 -q -O $net_path_FNO`)
+        run(`wget https://www.dropbox.com/s/3q3g6ixzavaikdb/'
+        'batch_size=8_dt=0.058824_ep=70_epochs=1000_learning_rate=0.0001_modet=9_modex=16_modez=16_nt=18_ntrain=5960_nvalid=40_s=1_width=20.jld2 -q -O $net_path_FNO`)
 end
 
 net_dict_FNO = JLD2.jldopen(net_path_FNO, "r")
