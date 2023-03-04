@@ -1095,9 +1095,9 @@ uuid = "82210473-ab04-4dce-b31b-11573c4f8e0a"
 version = "0.2.1"
 
 [[deps.JutulDarcyAD]]
-deps = ["ChainRulesCore", "Flux", "Jutul", "JutulDarcy", "LinearAlgebra", "MultiComponentFlash", "Optim", "Statistics", "Zygote"]
-git-tree-sha1 = "9790e520f1cf1341125b1595cb952bd5c2ad95a2"
-repo-rev = "up-jutul"
+deps = ["ChainRulesCore", "Flux", "Jutul", "JutulDarcy", "LinearAlgebra", "Optim", "Statistics"]
+git-tree-sha1 = "bc480179313ec843f4a22c000e3d854c68f125fe"
+repo-rev = "main"
 repo-url = "https://github.com/slimgroup/JutulDarcyAD.jl.git"
 uuid = "41f0c4f5-9bdd-4ef1-8c3a-d454dff2d562"
 version = "0.2.0"

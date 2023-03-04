@@ -125,7 +125,7 @@ ntS = Int(floor(timeS/dtS))+1       # time samples
 ntR = Int(floor(timeR/dtR))+1       # source time samples
 idx_wb = minimum(find_water_bottom(vp.-minimum(vp)))
 
-mode = "transmission"
+mode = "transmission+reflection"
 if mode == "reflection"
     xsrc = convertToCell(range(d[1],stop=(n[1]-1)*d[1],length=nsrc))
     zsrc = convertToCell(range(10f0,stop=10f0,length=nsrc))
@@ -231,7 +231,9 @@ for j=1:niterations
 
     # objective function for inversion
     function obj(dlogK)
-        c = box_co2(M(O(S(T(box_logK(logK0+mask[end].*dlogK)), f)))); v = R(pad(c)); v_up = box_v(v); dpred = F(v_up);
+        global logK_j = box_logK(logK0+mask[end].*dlogK)
+        global c_j = box_co2(M(O(S(T(logK_j), f))));
+        global dpred_j = F(box_v(R(pad(c_j))))
         fval = .5f0 * norm(dpred-dobs)^2f0/nsrc/nv
         @show fval
         return fval
@@ -245,11 +247,8 @@ for j=1:niterations
         
     println("Inversion iteration no: ",j,"; function value: ", fhistory[j])
 
-    ### plotting
-    y_predict = box_co2(M(O(S(T(mask[end].*dlogK+logK0), f))))
-
     ### save intermediate results
-    save_dict = @strdict j nssample f0 dlogK logK0 g niterations nv nsrc nrec nv cut_area tstep factor n d fhistory mask
+    save_dict = @strdict mode j nssample f0 dlogK logK0 g niterations nv nsrc nrec nv cut_area tstep factor n d fhistory mask
     @tagsave(
         joinpath(datadir(sim_name, exp_name), savename(save_dict, "jld2"; digits=6)),
         save_dict;
@@ -257,20 +256,20 @@ for j=1:niterations
     )
 
     ## save figure
-    fig_name = @strdict j nssample f0 dlogK logK0 niterations nv nsrc nrec nv cut_area tstep factor n d fhistory mask
+    fig_name = @strdict mode j nssample f0 dlogK logK0 niterations nv nsrc nrec nv cut_area tstep factor n d fhistory mask
 
     ## compute true and plot
-    SNR = -2f1 * log10(norm(K-exp.(mask[end].*dlogK+logK0))/norm(K))
+    SNR = -2f1 * log10(norm(K-exp.(logK_j))/norm(K))
     fig = figure(figsize=(20,12));
     subplot(2,2,1);
-    imshow(exp.(mask[end].*dlogK+logK0)'./md,vmin=0,vmax=maximum(K/md));title("inversion by NN, $(j) iter");colorbar();
+    imshow(exp.(logK_j)'./md, norm=matplotlib.colors.LogNorm(vmin=200, vmax=maximum(exp.(logK)./md)));title("inversion by NN, $(j-1) iter");colorbar();
     subplot(2,2,2);
-    imshow(K'./md,vmin=0,vmax=maximum(K/md));title("GT permeability");colorbar();
+    imshow(K'./md, norm=matplotlib.colors.LogNorm(vmin=200, vmax=maximum(exp.(logK)./md)));title("GT permeability");colorbar();
     subplot(2,2,3);
-    imshow(exp.(logK_init)'./md,vmin=0,vmax=maximum(K/md));title("initial permeability");colorbar();
+    imshow(exp.(logK_init)'./md, norm=matplotlib.colors.LogNorm(vmin=200, vmax=maximum(exp.(logK)./md)));title("initial permeability");colorbar();
     subplot(2,2,4);
-    imshow(abs.(K'-exp.(mask[end].*dlogK+logK0)')./md,vmin=0,vmax=maximum(K/md));title("abs error, SNR=$SNR");colorbar();
-    suptitle("End-to-end Inversion at iter $j")
+    imshow(abs.(K'-exp.(logK_j)')./md.+eps(), norm=matplotlib.colors.LogNorm(vmin=200, vmax=maximum(exp.(logK)./md)));title("abs error, SNR=$SNR");colorbar();
+    suptitle("End-to-end Inversion at iter $(j-1)")
     tight_layout()
     safesave(joinpath(plotsdir(sim_name, exp_name), savename(fig_name; digits=6)*"_K.png"), fig);
     close(fig)
@@ -278,7 +277,7 @@ for j=1:niterations
     ## loss
     fig = figure(figsize=(20,12));
     plot(fhistory[1:j]);title("loss=$(fhistory[j])");
-    suptitle("End-to-end Inversion at iter $j")
+    suptitle("End-to-end Inversion at iter $(j-1)")
     tight_layout()
     safesave(joinpath(plotsdir(sim_name, exp_name), savename(fig_name; digits=6)*"_loss.png"), fig);
     close(fig)
@@ -293,13 +292,13 @@ for j=1:niterations
         imshow(sw_true[3*i]', vmin=0, vmax=1);
         title("true at snapshot $(3*i)")
         subplot(4,5,i+10);
-        imshow(y_predict[3*i]', vmin=0, vmax=1);
+        imshow(c_j[3*i]', vmin=0, vmax=1);
         title("predict at snapshot $(3*i)")
         subplot(4,5,i+15);
-        imshow(5*abs.(sw_true[3*i]'-y_predict[3*i]'), vmin=0, vmax=1);
+        imshow(5*abs.(sw_true[3*i]'-c_j[3*i]'), vmin=0, vmax=1);
         title("5X diff at snapshot $(3*i)")
     end
-    suptitle("End-to-end Inversion at iter $j")
+    suptitle("End-to-end Inversion at iter $(j-1)")
     tight_layout()
     safesave(joinpath(plotsdir(sim_name, exp_name), savename(fig_name; digits=6)*"_saturation.png"), fig);
     close(fig)
