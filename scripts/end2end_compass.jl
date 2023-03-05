@@ -234,7 +234,7 @@ for j=1:niterations
         global logK_j = box_logK(logK0+mask[end].*dlogK)
         global c_j = box_co2(M(O(S(T(logK_j), f))));
         global dpred_j = F(box_v(R(pad(c_j))))
-        fval = .5f0 * norm(dpred-dobs)^2f0/nsrc/nv
+        fval = .5f0 * norm(dpred_j-dobs)^2f0/nsrc/nv
         @show fval
         return fval
     end
