@@ -35,7 +35,7 @@ n = size(m)
 # downsample
 cut_area = [201, 456, 182, n[end]]
 m = m[cut_area[1]:cut_area[2],cut_area[3]:cut_area[4]]
-h = (cut_area[3]-1) * d[end]
+h = Float64((cut_area[3]-1) * d[end])
 v = Float64.(sqrt.(1f0./m));
 factor = 2
 v = 1.0./downsample(1.0./v, factor)
