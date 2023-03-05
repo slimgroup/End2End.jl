@@ -34,13 +34,13 @@ mkpath(datadir())
 mkpath(plotsdir())
 
 ## load FNO
-net_path_FNO = datadir("3D_FNO", "batch_size=8_dt=0.058824_ep=90_epochs=1000_learning_rate=0.0001_nt=18_ntrain=5960_nvalid=40_s=1_width=20.jld2")
+net_path_FNO = datadir("3D_FNO", "batch_size=8_dt=0.058824_ep=70_epochs=1000_learning_rate=0.0001_modet=9_modex=16_modez=16_nt=18_ntrain=5960_nvalid=40_s=1_width=20.jld2")
 mkpath(datadir("3D_FNO"))
 
 # Download the dataset into the data directory if it does not exist
 if ~isfile(net_path_FNO)
-        run(`wget https://www.dropbox.com/s/nb1df3ajqn5j0pz/'
-        'batch_size=8_dt=0.058824_ep=90_epochs=1000_learning_rate=0.0001_nt=18_ntrain=5960_nvalid=40_s=1_width=20.jld2 -q -O $net_path_FNO`)
+        run(`wget https://www.dropbox.com/s/3q3g6ixzavaikdb/'
+        'batch_size=8_dt=0.058824_ep=70_epochs=1000_learning_rate=0.0001_modet=9_modex=16_modez=16_nt=18_ntrain=5960_nvalid=40_s=1_width=20.jld2 -q -O $net_path_FNO`)
 end
 
 net_dict_FNO = JLD2.jldopen(net_path_FNO, "r")
@@ -54,13 +54,13 @@ function S(x)
 end
 
 ## load NF
-net_path = datadir("trained-NF", "clip_norm=10.0_depth=5_e=134_lr=0.0001_nc_hidden=512_normal_max=-27.238718_normal_min=-31.556208_nscales=4_ntrain=20480_nx=128_ny=80_α=0.05_αmin=0.001.jld2")
+net_path = datadir("trained-NF", "clip_norm=10.0_depth=5_e=512_lr=0.0001_nc_hidden=512_normal_max=-27.238718_normal_min=-31.556208_nscales=4_ntrain=20480_nx=128_ny=80_α=0.05_αmin=0.001.jld2")
 mkpath(datadir("trained-NF"))
 
 # Download the dataset into the data directory if it does not exist
 if ~isfile(net_path)
-        run(`wget https://www.dropbox.com/s/qd50ali3dy11oum/'
-        'clip_norm=10.0_depth=5_e=134_lr=0.0001_nc_hidden=512_normal_max=-27.238718_normal_min=-31.556208_nscales=4_ntrain=20480_nx=128_ny=80_α=0.05_αmin=0.001.jld2 -q -O $net_path`)
+        run(`wget https://www.dropbox.com/s/tjze718lcjpwnvr/'
+        'clip_norm=10.0_depth=5_e=512_lr=0.0001_nc_hidden=512_normal_max=-27.238718_normal_min=-31.556208_nscales=4_ntrain=20480_nx=128_ny=80_α=0.05_αmin=0.001.jld2 -q -O $net_path`)
 end
 
 network_dict = JLD2.jldopen(net_path, "r");

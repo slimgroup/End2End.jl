@@ -29,7 +29,7 @@ mkpath(plotsdir())
 ## grid size
 JLD2.@load datadir("BGCompass_tti_625m.jld2") m d rho;
 vp = 1f0./sqrt.(m)
-d = (6., 6.)
+d = (6f0, 6f0)
 n = size(m)
 
 # downsample
@@ -42,7 +42,7 @@ v = 1.0./downsample(1.0./v, factor)
 
 ## flow dimension
 ns = (size(v,1), 1, size(v,2))
-ds = (d[1] * factor, 2000.0, d[2] * factor)
+ds = Float64.((d[1] * factor, 2000.0, d[2] * factor))
 Kh = VtoK(v, (ds[1], ds[end]));
 K = Float64.(Kh * md);
 
