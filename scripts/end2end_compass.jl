@@ -167,13 +167,13 @@ end
 
 # Define seismic data directory
 mkpath(datadir("seismic-data"))
-misc_dict = @strdict nsrc nrec nv f0 cut_area tstep factor d n
+misc_dict = @strdict mode nsrc nrec nv f0 cut_area tstep factor d n
 
 ### generate/load data
 if ~isfile(datadir("seismic-data", savename(misc_dict, "jld2"; digits=6)))
     println("generating data")
     global d_obs = [Fs[i]*q for i = 1:nv]
-    seismic_dict = @strdict nsrc nrec nv f0 cut_area tstep factor d n d_obs q srcGeometry recGeometry model
+    seismic_dict = @strdict mode nsrc nrec nv f0 cut_area tstep factor d n d_obs q srcGeometry recGeometry model
     @tagsave(
         datadir("seismic-data", savename(seismic_dict, "jld2"; digits=6)),
         seismic_dict;
