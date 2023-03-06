@@ -17,6 +17,7 @@ using GlowInvertibleNetwork
 using Random
 using Images
 using FNO4CO2
+using JSON
 
 if gpu_flag
     device = gpu
@@ -33,14 +34,16 @@ exp_name = "compass-NF-FNO"
 mkpath(datadir())
 mkpath(plotsdir())
 
+info = JSON.parsefile(projectdir("info.json"))
+
 ## load FNO
-net_path_FNO = datadir("3D_FNO", "batch_size=8_dt=0.058824_ep=70_epochs=1000_learning_rate=0.0001_modet=9_modex=16_modez=16_nt=18_ntrain=5960_nvalid=40_s=1_width=20.jld2")
+net_path_FNO = datadir("3D_FNO", info["_FNO_NAME"])
 mkpath(datadir("3D_FNO"))
 
 # Download the dataset into the data directory if it does not exist
 if ~isfile(net_path_FNO)
-        run(`wget https://www.dropbox.com/s/3q3g6ixzavaikdb/'
-        'batch_size=8_dt=0.058824_ep=70_epochs=1000_learning_rate=0.0001_modet=9_modex=16_modez=16_nt=18_ntrain=5960_nvalid=40_s=1_width=20.jld2 -q -O $net_path_FNO`)
+        run(`wget $(info["_FNO_LINK"])'
+        '$(info["_FNO_NAME"]) -q -O $net_path_FNO`)
 end
 
 net_dict_FNO = JLD2.jldopen(net_path_FNO, "r")
@@ -54,13 +57,13 @@ function S(x)
 end
 
 ## load NF
-net_path = datadir("trained-NF", "clip_norm=10.0_depth=5_e=512_lr=0.0001_nc_hidden=512_normal_max=-27.238718_normal_min=-31.556208_nscales=4_ntrain=20480_nx=128_ny=80_α=0.05_αmin=0.001.jld2")
+net_path = datadir("trained-NF", info["_NF_NAME"])
 mkpath(datadir("trained-NF"))
 
 # Download the dataset into the data directory if it does not exist
 if ~isfile(net_path)
-        run(`wget https://www.dropbox.com/s/tjze718lcjpwnvr/'
-        'clip_norm=10.0_depth=5_e=512_lr=0.0001_nc_hidden=512_normal_max=-27.238718_normal_min=-31.556208_nscales=4_ntrain=20480_nx=128_ny=80_α=0.05_αmin=0.001.jld2 -q -O $net_path`)
+        run(`wget $(info["_NF_LINK"])'
+        '$(info["_NF_NAME"]) -q -O $net_path`)
 end
 
 network_dict = JLD2.jldopen(net_path, "r");
@@ -163,16 +166,17 @@ function VtoK_nowater(v::Matrix{T}, d::Tuple{T, T}; α::T=T(20)) where T
         α*exp.(v[i,idx_ucfmt[i]:end])  .- α*exp(T(3.5)))' for i = 1:n[1]]...)
 end
 
+logK = Float32.(logK)
 logK0 = log.(VtoK_nowater(v, (d[1], d[end])).*md)
 logK0[v.>3.5] .= mean(logK[v.>3.5])
 logK0 = max.(logK0, log(20*md))
 
 z = G.inverse(normal(reshape(Float32.(logK0), ns[1], ns[end], 1, 1)) |> device)
-z = randn(Float32, ns[1], ns[end], 1, 1) |> device
+#z = randn(Float32, ns[1], ns[end], 1, 1) |> device
 λ = 1f0
 
 # GD algorithm
-learning_rate = 1f-7
+learning_rate = 1f-1
 lr_min = learning_rate*1f-2
 decay_rate = exp(log(lr_min/learning_rate)/niterations)
 opt = Flux.Optimiser(ExpDecay(learning_rate, decay_rate, 1, lr_min), Descent(1f0))
@@ -182,10 +186,10 @@ NN = NN |> device;
 AN = AN |> device;
 z = z |> device;
 #init_misfit = norm(vec(S(box_logK(set_seal(invnormal(G(z)[:,:,1,1]))))[:,:,1:15,1])-ctrue)^2
-noise = vec(S(Float32.(logK)|>device)[:,:,1:15,1])-ctrue
-σ = Float32.(norm(noise)/sqrt(length(noise)))
+#noise = vec(S(Float32.(logK)|>device)[:,:,1:15,1])-ctrue
+#σ = Float32.(norm(noise)/sqrt(length(noise)))
 #f(z) = .5 * norm(vec(S(box_logK(set_seal(invnormal(G(z)[:,:,1,1]))))[:,:,1:15,1])-ctrue)^2/init_misfit + .5f0 * λ^2f0 * norm(z)^2f0/length(z) 
-f(z) = .5 * norm(vec(S(box_logK(set_seal(invnormal(G(z)[:,:,1,1]))))[:,:,1:15,1])-ctrue)^2/σ^2f0 + .5f0 * λ^2f0 * norm(z)^2f0
+f(z) = .5 * norm(vec(S(box_logK(set_seal(invnormal(G(z)[:,:,1,1]))))[:,:,1:15,1])-ctrue)^2 + .5f0 * λ^2f0 * norm(z)^2f0
 logK_init = box_logK(set_seal(invnormal(G(z)[:,:,1,1])))
 @time state_init = S(logK_init)
 
