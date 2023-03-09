@@ -172,8 +172,9 @@ logK0[v.>3.5] .= mean(logK[v.>3.5])
 logK0 = max.(logK0, log(20*md))
 
 z = G.inverse(normal(reshape(Float32.(logK0), ns[1], ns[end], 1, 1)) |> device)
+#z = 0f0 .* z
 #z = randn(Float32, ns[1], ns[end], 1, 1) |> device
-λ = 1f0
+λ = 5f0
 
 # GD algorithm
 learning_rate = 1f-1
@@ -189,14 +190,30 @@ z = z |> device;
 #noise = vec(S(Float32.(logK)|>device)[:,:,1:15,1])-ctrue
 #σ = Float32.(norm(noise)/sqrt(length(noise)))
 #f(z) = .5 * norm(vec(S(box_logK(set_seal(invnormal(G(z)[:,:,1,1]))))[:,:,1:15,1])-ctrue)^2/init_misfit + .5f0 * λ^2f0 * norm(z)^2f0/length(z) 
-f(z) = .5 * norm(vec(S(box_logK(set_seal(invnormal(G(z)[:,:,1,1]))))[:,:,1:15,1])-ctrue)^2 + .5f0 * λ^2f0 * norm(z)^2f0
+f(z) = .5f0 * norm(vec(S(box_logK(set_seal(invnormal(G(z)[:,:,1,1]))))[:,:,1:15,1])-ctrue)^2 + .5f0 * λ^2f0 * norm(z)^2f0
 logK_init = box_logK(set_seal(invnormal(G(z)[:,:,1,1])))
 @time state_init = S(logK_init)
+
+ls = BackTracking(c_1=1f-4,iterations=10,maxstep=Inf32,order=3,ρ_hi=5f-1,ρ_lo=1f-1)
 
 for j=1:niterations
 
     @time fval, gs = Flux.withgradient(() -> f(z), Flux.params(z))
-    Flux.Optimise.update!(opt, z, gs[z])
+
+    # (normalized) update direction
+    g = gs[z]
+    p = -g
+
+    # linesearch
+    function ϕ_(α)::Float32
+        fval = f(Float32.(z .+ α * p))
+        isnan(fval) && return Inf32
+        @show fval
+        return fval
+    end
+
+    global step, fval = ls(ϕ_, 1f-1, fval, dot(g, p))
+    global z = Float32.(z .+ step * p)
     fhistory[j] = fval
     
     println("Inversion iteration no: ",j,"; function value: ",fval)
@@ -212,7 +229,7 @@ for j=1:niterations
     subplot(1,3,2);
     imshow(exp.(logK0|>cpu)'./md, norm=matplotlib.colors.LogNorm(vmin=200, vmax=maximum(exp.(logK)./md))); colorbar(); title("inverted permeability")
     subplot(1,3,3);
-    imshow(abs.(exp.(logK)'./md.-exp.(logK0|>cpu)'./md), norm=matplotlib.colors.LogNorm(vmin=200, vmax=maximum(exp.(logK)./md))); colorbar(); title("diff")
+    imshow(abs.(exp.(logK)'./md.-exp.(logK0|>cpu)'./md).+eps(), norm=matplotlib.colors.LogNorm(vmin=200, vmax=maximum(exp.(logK)./md))); colorbar(); title("diff")
     suptitle("Flow Inversion at iter $j")
     tight_layout()
     safesave(joinpath(plotsdir(sim_name, exp_name), savename(fig_name; digits=6)*"_diff.png"), fig);
