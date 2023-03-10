@@ -201,14 +201,6 @@ dlogK = 0 .* logK0
 logK_init = deepcopy(logK0)
 y_init = box_co2(O(S(T(logK_init), f)))
 
-# GD algorithm
-learning_rate = 125f0
-lr_min = learning_rate*1f-2
-nssample = 4
-nbatches = div(nsrc, nssample)
-decay_rate = exp(log(lr_min/learning_rate)/niterations)
-opt = Flux.Optimiser(ExpDecay(learning_rate, decay_rate, 1, lr_min), Descent(1f0))
-
 for j=1:niterations
 
     Base.flush(Base.stdout)
@@ -235,11 +227,21 @@ for j=1:niterations
     ## AD by Flux
     @time fval, gs = Flux.withgradient(() -> obj(dlogK), Flux.params(dlogK))
 
+    println("Inversion iteration no: ",j,"; function value: ", fhistory[j])
+
     fhistory[j] = fval
     g = gs[dlogK]
-    Flux.Optimise.update!(opt, logK0, g)
-        
-    println("Inversion iteration no: ",j,"; function value: ", fhistory[j])
+    p = -g/norm(g, Inf)
+
+    # linesearch
+    function f_(α)
+        misfit = obj(dlogK + α * p)
+        @show α, misfit
+        return misfit
+    end
+
+    step, fval = ls(f_, 1e0, fval, dot(g, p))
+    global dlogK = dlogK + α * p
 
     ### save intermediate results
     save_dict = @strdict mode j nssample f0 dlogK logK0 g niterations nv nsrc nrec nv cut_area tstep factor n d fhistory mask
@@ -256,7 +258,7 @@ for j=1:niterations
     SNR = -2f1 * log10(norm(K-exp.(logK_j))/norm(K))
     fig = figure(figsize=(20,12));
     subplot(2,2,1);
-    imshow(exp.(logK_j)'./md, norm=matplotlib.colors.LogNorm(vmin=200, vmax=maximum(exp.(logK)./md)));title("inversion by NN, $(j-1) iter");colorbar();
+    imshow(exp.(logK_j)'./md, norm=matplotlib.colors.LogNorm(vmin=200, vmax=maximum(exp.(logK)./md)));title("inversion, $(j-1) iter");colorbar();
     subplot(2,2,2);
     imshow(K'./md, norm=matplotlib.colors.LogNorm(vmin=200, vmax=maximum(exp.(logK)./md)));title("GT permeability");colorbar();
     subplot(2,2,3);
@@ -289,7 +291,7 @@ for j=1:niterations
         imshow(c_j[3*i]', vmin=0, vmax=1);
         title("predict at snapshot $(3*i)")
         subplot(4,5,i+15);
-        imshow(5*abs.(sw_true[3*i]'-c_j[3*i]'), vmin=0, vmax=1);
+        imshow(5*(sw_true[3*i]'-c_j[3*i]'), vmin=-1, vmax=1, cmap="magma");
         title("5X diff at snapshot $(3*i)")
     end
     suptitle("End-to-end Inversion at iter $(j-1)")
