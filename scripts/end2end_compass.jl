@@ -131,12 +131,12 @@ extentz = (n[2]-1)*d[2];
 mode = "transmission"
 if mode == "reflection"
     xsrc = [ContJitter(extentx, nsrc) for i=1:nv]
-    zsrc = convertToCell(range(10f0,stop=10f0,length=nsrc))
+    zsrc = [convertToCell(range(10f0,stop=10f0,length=nsrc)) for i=1:nv]
     xrec = range(d[1],stop=(n[1]-1)*d[1],length=nrec)
     zrec = range((idx_wb-1)*d[2]-2f0,stop=(idx_wb-1)*d[2]-2f0,length=nrec)
 elseif mode == "transmission"
-    xsrc = convertToCell(range(d[1],stop=d[1],length=nsrc))
-    zsrc = convertToCell(range((idx_wb-1)*d[2]+10f0,stop=(n[2]-1)*d[2],length=nsrc))
+    xsrc = [convertToCell(range(d[1],stop=d[1],length=nsrc)) for i=1:nv]
+    zsrc = [convertToCell(range((idx_wb-1)*d[2]+10f0,stop=(n[2]-1)*d[2],length=nsrc)) for i=1:nv]
     xrec = range((n[1]-1)*d[1],stop=(n[1]-1)*d[1], length=nrec)
     zrec = range((idx_wb-1)*d[2]+10f0,stop=(n[2]-1)*d[2],length=nrec)
 else
@@ -151,7 +151,7 @@ ysrc = convertToCell(range(0f0,stop=0f0,length=nsrc))
 yrec = 0f0
 
 # set up src/rec geometry
-srcGeometry = [Geometry(xsrc[i], ysrc, zsrc; dt=dtS, t=timeS) for i = 1:nv]
+srcGeometry = [Geometry(xsrc[i], ysrc, zsrc[i]; dt=dtS, t=timeS) for i = 1:nv]
 recGeometry = Geometry(xrec, yrec, zrec; dt=dtR, t=timeR, nsrc=nsrc)
 
 # set up source
