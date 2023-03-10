@@ -125,9 +125,12 @@ ntS = Int(floor(timeS/dtS))+1       # time samples
 ntR = Int(floor(timeR/dtR))+1       # source time samples
 idx_wb = minimum(find_water_bottom(vp.-minimum(vp)))
 
+extentx = (n[1]-1)*d[1];
+extentz = (n[2]-1)*d[2];
+
 mode = "transmission"
 if mode == "reflection"
-    xsrc = convertToCell(range(d[1],stop=(n[1]-1)*d[1],length=nsrc))
+    xsrc = [ContJitter(extentx, nsrc) for i=1:nv]
     zsrc = convertToCell(range(10f0,stop=10f0,length=nsrc))
     xrec = range(d[1],stop=(n[1]-1)*d[1],length=nrec)
     zrec = range((idx_wb-1)*d[2]-2f0,stop=(idx_wb-1)*d[2]-2f0,length=nrec)
@@ -148,13 +151,13 @@ ysrc = convertToCell(range(0f0,stop=0f0,length=nsrc))
 yrec = 0f0
 
 # set up src/rec geometry
-srcGeometry = Geometry(xsrc, ysrc, zsrc; dt=dtS, t=timeS)
+srcGeometry = [Geometry(xsrc[i], ysrc, zsrc; dt=dtS, t=timeS) for i = 1:nv]
 recGeometry = Geometry(xrec, yrec, zrec; dt=dtR, t=timeR, nsrc=nsrc)
 
 # set up source
 f0 = 0.02f0     # kHz
 wavelet = ricker_wavelet(timeS, dtS, f0)
-q = judiVector(srcGeometry, wavelet)
+q = [judiVector(srcGeometry[i], wavelet) for i = 1:nv]
 
 # set up simulation operators
 Fs = [judiModeling(models[i], srcGeometry, recGeometry) for i = 1:nv] # acoustic wave equation solver
@@ -162,7 +165,7 @@ Fs = [judiModeling(models[i], srcGeometry, recGeometry) for i = 1:nv] # acoustic
 ## wave physics
 function F(v::Vector{Matrix{Float32}})
     m = [vec(1f0./v[i]).^2f0 for i = 1:nv]
-    return [Fs[i](m[i], q) for i = 1:nv]
+    return [Fs[i](m[i], q[i]) for i = 1:nv]
 end
 
 # Define seismic data directory
@@ -172,7 +175,7 @@ misc_dict = @strdict mode nsrc nrec nv f0 cut_area tstep factor d n
 ### generate/load data
 if ~isfile(datadir("seismic-data", savename(misc_dict, "jld2"; digits=6)))
     println("generating data")
-    global d_obs = [Fs[i]*q for i = 1:nv]
+    global d_obs = [Fs[i]*q[i] for i = 1:nv]
     seismic_dict = @strdict mode nsrc nrec nv f0 cut_area tstep factor d n d_obs q srcGeometry recGeometry model
     @tagsave(
         datadir("seismic-data", savename(seismic_dict, "jld2"; digits=6)),
@@ -212,7 +215,7 @@ for j=1:niterations
 
     ### subsample sources
     rand_ns = [jitter(nsrc, nssample) for i = 1:nv]                             # select random source idx for each vintage
-    q_sub = [q[rand_ns[i]] for i = 1:nv]                                        # set-up source
+    q_sub = [q[i][rand_ns[i]] for i = 1:nv]                                        # set-up source
     F_sub = [Fs[i][rand_ns[i]] for i = 1:nv]                                 # set-up wave modeling operator
     dobs = [d_obs[i][rand_ns[i]] for i = 1:nv]                                  # subsampled seismic dataset from the selected sources
     function F(v::Vector{Matrix{Float32}})

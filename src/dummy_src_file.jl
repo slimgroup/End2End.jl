@@ -85,6 +85,15 @@ function jitter(nsrc::Int, nssample::Int)
     return rand(1:npatch, nssample) .+ convert(Vector{Int},0:npatch:(nsrc-1))
 end
 
+function ContJitter(l::Number, num::Int)
+    #l = length, num = number of samples
+    interval_width = l/num
+    interval_center = range(interval_width/2, stop = l-interval_width/2, length=num)
+    randomshift = interval_width .* rand(Float32, num) .- interval_width/2
+
+    return interval_center .+ randomshift
+end
+
 box_logK(x::AbstractArray{T}; upper=log(6000*md), lower=log(1e-3*md)) where T = max.(min.(x,T(upper)),T(lower))
 box_co2(x::AbstractArray{T}) where T = max.(min.(x,T(0.9)),T(0))
 box_co2(x::AbstractVector) = [box_co2(x[i]) for i = 1:length(x)]
