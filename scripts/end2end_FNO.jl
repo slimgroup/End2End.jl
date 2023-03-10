@@ -7,7 +7,7 @@ using Pkg; Pkg.instantiate();
 include(srcdir("dummy_src_file.jl"))
 using JUDI
 dummy_JUDI_operation()
-using JutulDarcyAD
+using JutulDarcyRules
 using LinearAlgebra
 using PyPlot
 using Flux

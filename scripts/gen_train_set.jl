@@ -3,8 +3,8 @@
 using DrWatson
 @quickactivate "jutul-compass"
 
-using Pkg; Pkg.instantiate();
-using JutulDarcyAD
+using Pkg; Pkg.instantiate()
+using JutulDarcyRules
 using LinearAlgebra
 using PyPlot
 using Flux

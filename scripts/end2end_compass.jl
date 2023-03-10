@@ -7,7 +7,7 @@ using Pkg; Pkg.instantiate();
 include(srcdir("dummy_src_file.jl"))
 using JUDI
 dummy_JUDI_operation()
-using JutulDarcyAD
+using JutulDarcyRules
 using LinearAlgebra
 using PyPlot
 using Flux
@@ -21,60 +21,56 @@ Random.seed!(2023)
 matplotlib.use("agg")
 
 sim_name = "end2end-inv"
-exp_name = "compass"
+exp_name = "vanilla"
 
 mkpath(datadir())
 mkpath(plotsdir())
 
-## grid size
-JLD2.@load datadir("BGCompass_tti_625m.jld2") m d rho;
-vp = 1f0./sqrt.(m)
+## load compass
+JLD2.@load datadir("image2023_v_rho.jld2") v rho
+vp = deepcopy(v)
+n = size(vp)
 d = (6f0, 6f0)
-n = size(m)
 
-# downsample
-cut_area = [201, 456, 182, n[end]]
-m = m[cut_area[1]:cut_area[2],cut_area[3]:cut_area[4]]
-h = Float64((cut_area[3]-1) * d[end])
-v = Float64.(sqrt.(1f0./m));
-factor = 2
+cut_area = [1, n[1], 182, n[end]]
+v = Float64.(vp[cut_area[1]:cut_area[2], cut_area[3]:cut_area[4]])
+factor = (3,2)
+d = (6., 6.)
+h = 181 * d[end]
 v = 1.0./downsample(1.0./v, factor)
+ds = Float64.(d) .* factor;
 
-## flow dimension
 ns = (size(v,1), 1, size(v,2))
-ds = Float64.((d[1] * factor, 2000.0, d[2] * factor))
-Kh = VtoK(v, (ds[1], ds[end]));
+ds = (ds[1], ds[1]*ns[1], ds[2])
+
+Kh = VtoK.(v);
 K = Float64.(Kh * md);
 
 # set up jutul model
 ϕ = 0.25
-model = jutulModel(ns, ds, ϕ, K1to3(K; kvoverkh=0.36); h=h)
+model = jutulModel(ns, ds, ϕ, K1to3(K; kvoverkh=0.1); h=h)
 
 ## simulation time steppings
-tstep = 365.25 * ones(15)
+tstep = 365.25 * 5 * ones(5)
 tot_time = sum(tstep)
 
 ## injection & production
-inj_loc = (Int(round(ns[1]/2)), 1, ns[end]-20) .* ds
-irate = 0.3
-f = jutulForce(irate, [inj_loc])
+inj_loc = (128, 1, ns[end]-20) .* ds
+pore_volumes = ϕ * sum(v.>3.5) * prod(ds)
+irate = 0.2 * pore_volumes / tot_time / 24 / 60 / 60
+#irate = 0.3
+f = jutulVWell(irate, (inj_loc[1], inj_loc[2]); startz = 46 * ds[end], endz = 48 * ds[end])
 
 ## set up modeling operator
 S = jutulModeling(model, tstep)
 
 ## simulation
 mesh = CartesianMesh(model)
-T(x) = log.(KtoTrans(mesh, K1to3(exp.(x); kvoverkh=0.36)))
+T(x) = log.(KtoTrans(mesh, K1to3(exp.(x); kvoverkh=0.1)))
 
 logK = log.(K)
 
-# Download the dataset into the data directory if it does not exist
-mkpath(datadir("flow-data"))
-if ~isfile(datadir("flow-data", "true_state.jld2"))
-    run(`wget https://www.dropbox.com/s/ts2wntxnqy1zqdr/'
-        'true_state.jld2 -q -O $(datadir("flow-data", "true_state.jld2"))`)
-end
-JLD2.@load datadir("flow-data", "true_state.jld2") state
+@time state = S(T(logK), f)
 
 ### observed states
 nv = length(tstep)
@@ -84,24 +80,28 @@ function O(state::AbstractVector)
 end
 sw_true = O(state)
 
-function CO2mute(sw_true::Vector{Matrix{Float32}}; clip::Float32=2f-3)
-    sw_smooth = [imfilter(sw_true[i], Kernel.gaussian(5)) for i = 1:length(sw_true)];
-    mask = [Float32.(imfilter(Float32.(sw_smooth[i] .>= clip), Kernel.gaussian(5))) for i = 1:length(sw_smooth)]
-    return mask
+known_idx = [findlast(v[i,:].<=3.5) for i = 1:size(Kh,1)]
+mask = Vector{Matrix{Float32}}(undef, nv)
+for i = 1:nv
+
+    energy_i = [norm(sw_true[i][ix,:]) for ix in axes(sw_true[i],1)]
+    first_i = findfirst(energy_i.>0)
+    end_i = findlast(energy_i.>0)
+    mask_i = zeros(Float32, size(sw_true[i]))
+    mask_i[max(1, first_i-5):min(end_i+5, size(sw_true[i],1)), :] .= 1f0
+    mask_i = Float32.(imfilter(mask_i, Kernel.gaussian(3)))
+    for j in axes(mask_i, 1)
+        mask_i[j,1:known_idx[j]] .= 0f0
+    end
+    mask[i] = mask_i
+
 end
-mask = CO2mute(sw_true);
-known_idx = [findlast(Kh[i,:] .== 1e-3) for i = 1:size(Kh,1)]
-known_mask = ones(Float32, size(Kh))
-for i = 1:size(known_mask,1)
-    known_mask[i,1:known_idx[i]] .= 0f0
-end
-mask = [mask[i] .* known_mask for i = 1:length(mask)]
 M(sw::Vector{Matrix{Float32}}) = [sw[i] .* mask[i] for i = 1:length(sw)]
 
 ### pad co2 back to normal size
 pad(c::Matrix{Float32}) =
     hcat(zeros(Float32, n[1], cut_area[3]-1),
-    vcat(zeros(Float32, cut_area[1]-1, factor * size(c,2)), repeat(c, inner=(factor, factor)), zeros(Float32, n[1]-cut_area[2], factor * size(c,2))))
+    vcat(zeros(Float32, cut_area[1]-1, factor[2] * size(c,2)), repeat(c, inner=factor), zeros(Float32, n[1]-cut_area[2], factor[2] * size(c,2))))
 pad(c::Vector{Matrix{Float32}}) = [pad(c[i]) for i = 1:nv]
 
 sw_pad = pad(sw_true)
@@ -115,7 +115,7 @@ vps = R(sw_pad)   # time-varying vp
 o = (0f0, 0f0)          # origin
 
 nsrc = 32       # num of sources
-nrec = 960      # num of receivers
+nrec = 600      # num of receivers
 
 models = [Model(n, d, o, (1f0 ./ vps[i]).^2f0; nb = 80) for i = 1:nv]   # wave model
 
@@ -125,7 +125,7 @@ ntS = Int(floor(timeS/dtS))+1       # time samples
 ntR = Int(floor(timeR/dtR))+1       # source time samples
 idx_wb = minimum(find_water_bottom(vp.-minimum(vp)))
 
-mode = "transmission+reflection"
+mode = "transmission"
 if mode == "reflection"
     xsrc = convertToCell(range(d[1],stop=(n[1]-1)*d[1],length=nsrc))
     zsrc = convertToCell(range(10f0,stop=10f0,length=nsrc))
@@ -187,18 +187,9 @@ end
 
 ls = BackTracking(order=3, iterations=10)
 
-lower, upper = 1.1*minimum(logK), 0.9*maximum(logK)
-box_logK(x::AbstractArray{T}) where T = max.(min.(x,T(upper)),T(lower))
-
 # Main loop
 niterations = 200
 fhistory = zeros(niterations)
-
-### add box to co2 and velocity
-box_co2(x::AbstractArray{T}) where T = max.(min.(x,T(1)),T(0))
-box_co2(x::AbstractVector) = [box_co2(x[i]) for i = 1:length(x)]
-box_v(x::AbstractMatrix{T}) where T = max.(min.(x,T(maximum(vp))),T(minimum(vp)))
-box_v(x::AbstractVector) = [box_v(x[i]) for i = 1:length(x)]
 
 ### inversion initialization
 logK0 = deepcopy(logK)

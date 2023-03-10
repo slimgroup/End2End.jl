@@ -14,9 +14,30 @@ function VtoK(v::Matrix{T}, d::Tuple{T, T}; α::T=T(20)) where T
         α*exp.(v[i,idx_ucfmt[i]:end])  .- α*exp(T(3.5)))' for i = 1:n[1]]...)
 end
 
+function VtoK(v)
+    if v >= 4
+        K = exp(v-4.25) * 3000. / exp(4-4.25)
+    elseif v >= 3.5
+        K = 0.01 * exp(log(3000. /0.01)/0.5*(v-3.5))
+    else
+        K = 0.01 * exp(v-1.5)/exp(3.5-1.5)
+    end
+    return K
+end
+
 function downsample(v::Matrix{T}, factor::Int) where T
+    return downsample(v, (factor, factor))
+end
+
+function downsample(v::Matrix{T}, factor::Tuple{Int, Int}) where T
     v_out_size = div.(size(v), factor)
-    return vcat([vcat([mean(v[factor*i-factor+1:factor*i, factor*j-factor+1:factor*j]) for j = 1:v_out_size[2]]...)' for i = 1:v_out_size[1]]...)
+    v_out = zeros(T, v_out_size)
+    for i = 1:v_out_size[1]
+        for j = 1:v_out_size[2]
+            v_out[i,j] = mean(v[factor[1]*i-factor[1]+1:factor[1]*i, factor[2]*j-factor[2]+1:factor[2]*j])
+        end
+    end
+    return v_out
 end
 
 #### Patchy saturation model
@@ -64,10 +85,10 @@ function jitter(nsrc::Int, nssample::Int)
     return rand(1:npatch, nssample) .+ convert(Vector{Int},0:npatch:(nsrc-1))
 end
 
-box_logK(x::AbstractArray{T}; upper=log(1500*md), lower=log(1e-4*md)) where T = max.(min.(x,T(upper)),T(lower))
+box_logK(x::AbstractArray{T}; upper=log(6000*md), lower=log(1e-3*md)) where T = max.(min.(x,T(upper)),T(lower))
 box_co2(x::AbstractArray{T}) where T = max.(min.(x,T(0.9)),T(0))
 box_co2(x::AbstractVector) = [box_co2(x[i]) for i = 1:length(x)]
-box_v(x::AbstractMatrix{T}; upper=4.6454024f0, lower=1.48f0) where T = max.(min.(x,T(upper)),T(lower))
+box_v(x::AbstractMatrix{T}; upper=4.7f0, lower=1.48f0) where T = max.(min.(x,T(upper)),T(lower))
 box_v(x::AbstractVector) = [box_v(x[i]) for i = 1:length(x)]
 
 function dummy_JUDI_operation()
