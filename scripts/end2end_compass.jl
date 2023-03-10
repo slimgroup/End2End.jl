@@ -160,7 +160,7 @@ wavelet = ricker_wavelet(timeS, dtS, f0)
 q = [judiVector(srcGeometry[i], wavelet) for i = 1:nv]
 
 # set up simulation operators
-Fs = [judiModeling(models[i], srcGeometry, recGeometry) for i = 1:nv] # acoustic wave equation solver
+Fs = [judiModeling(models[i], srcGeometry[i], recGeometry) for i = 1:nv] # acoustic wave equation solver
 
 ## wave physics
 function F(v::Vector{Matrix{Float32}})
