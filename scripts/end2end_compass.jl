@@ -1,17 +1,24 @@
 ## A 2D compass example
+using ThreadPinning
+pinthreads(:cores)
+nthreads = try
+    # Slurm
+    parse(Int, ENV["SLURM_CPUS_ON_NODE"])
+catch e
+    # Desktop
+    Sys.CPU_THREADS
+end
+using LinearAlgebra
+BLAS.set_num_threads(nthreads)
 
 using DrWatson
 @quickactivate "jutul-compass"
 
 using Pkg; Pkg.instantiate();
-using ThreadPinning
-pinthreads(:cores)
 include(srcdir("dummy_src_file.jl"))
 using JUDI
 dummy_JUDI_operation()
 using JutulDarcyRules
-using LinearAlgebra
-BLAS.set_num_threads(Threads.nthreads())
 using PyPlot
 using Flux
 using LineSearches
