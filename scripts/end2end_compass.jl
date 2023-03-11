@@ -1,4 +1,8 @@
 ## A 2D compass example
+using DrWatson
+@quickactivate "jutul-compass"
+using Pkg; Pkg.instantiate();
+
 using ThreadPinning
 pinthreads(:cores)
 nthreads = try
@@ -11,10 +15,6 @@ end
 using LinearAlgebra
 BLAS.set_num_threads(nthreads)
 
-using DrWatson
-@quickactivate "jutul-compass"
-
-using Pkg; Pkg.instantiate();
 include(srcdir("dummy_src_file.jl"))
 using JUDI
 dummy_JUDI_operation()
