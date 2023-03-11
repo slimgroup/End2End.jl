@@ -9,6 +9,7 @@ using JUDI
 dummy_JUDI_operation()
 using JutulDarcyRules
 using LinearAlgebra
+BLAS.set_num_threads(Threads.nthreads())
 using PyPlot
 using Flux
 using LineSearches
