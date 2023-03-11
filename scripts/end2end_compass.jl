@@ -192,6 +192,7 @@ ls = BackTracking(order=3, iterations=10)
 
 # Main loop
 niterations = 200
+nssample = 4
 fhistory = zeros(niterations)
 
 ### inversion initialization
@@ -240,7 +241,7 @@ for j=1:niterations
         return misfit
     end
 
-    step, fval = ls(f_, 1e0, fval, dot(g, p))
+    step, fval = ls(f_, 1.0, fval, dot(g, p))
     global dlogK = dlogK + α * p
 
     ### save intermediate results
