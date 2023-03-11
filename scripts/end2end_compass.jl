@@ -4,6 +4,8 @@ using DrWatson
 @quickactivate "jutul-compass"
 
 using Pkg; Pkg.instantiate();
+using ThreadPinning
+pinthreads(:cores)
 include(srcdir("dummy_src_file.jl"))
 using JUDI
 dummy_JUDI_operation()
