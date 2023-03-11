@@ -242,7 +242,7 @@ for j=1:niterations
     end
 
     step, fval = ls(f_, 1.0, fval, dot(g, p))
-    global dlogK = dlogK + α * p
+    global dlogK = dlogK + step * p
 
     ### save intermediate results
     save_dict = @strdict mode j nssample f0 dlogK logK0 g niterations nv nsrc nrec nv cut_area tstep factor n d fhistory mask
