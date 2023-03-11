@@ -2,7 +2,7 @@
 
 julia_version = "1.8.5"
 manifest_format = "2.0"
-project_hash = "f734ed516813d3e651f3bac926c11e5215056af4"
+project_hash = "37421a69915a8b31f982216e5b4fa56ffc9229d9"
 
 [[deps.AMD]]
 deps = ["Libdl", "LinearAlgebra", "SparseArrays", "Test"]
@@ -2006,6 +2006,12 @@ uuid = "8dfed614-e22c-5e08-85e1-65c5234f0b40"
 git-tree-sha1 = "8621ba2637b49748e2dc43ba3d84340be2938022"
 uuid = "1c621080-faea-4a02-84b6-bbd5e436b8fe"
 version = "0.1.1"
+
+[[deps.ThreadPinning]]
+deps = ["DelimitedFiles", "DocStringExtensions", "Libdl", "LinearAlgebra", "Preferences", "Random", "SnoopPrecompile"]
+git-tree-sha1 = "4b3eb2e205c760bacafb6a475320a663f3fb0904"
+uuid = "811555cd-349b-4f26-b7bc-1f208b848042"
+version = "0.7.3"
 
 [[deps.ThreadingUtilities]]
 deps = ["ManualMemory"]
