@@ -283,17 +283,17 @@ for j=1:niterations
     fig = figure(figsize=(20,12));
     for i = 1:5
         subplot(4,5,i);
-        imshow(y_init[3*i]', vmin=0, vmax=1);
-        title("initial prediction at snapshot $(3*i)")
+        imshow(y_init[i]', vmin=0, vmax=1);
+        title("initial prediction at snapshot $(i)")
         subplot(4,5,i+5);
-        imshow(sw_true[3*i]', vmin=0, vmax=1);
-        title("true at snapshot $(3*i)")
+        imshow(sw_true[i]', vmin=0, vmax=1);
+        title("true at snapshot $(i)")
         subplot(4,5,i+10);
-        imshow(c_j[3*i]', vmin=0, vmax=1);
-        title("predict at snapshot $(3*i)")
+        imshow(c_j[i]', vmin=0, vmax=1);
+        title("predict at snapshot $(i)")
         subplot(4,5,i+15);
-        imshow(5*(sw_true[3*i]'-c_j[3*i]'), vmin=-1, vmax=1, cmap="magma");
-        title("5X diff at snapshot $(3*i)")
+        imshow(5*(sw_true[i]'-c_j[i]'), vmin=-1, vmax=1, cmap="magma");
+        title("5X diff at snapshot $(i)")
     end
     suptitle("End-to-end Inversion at iter $(j-1)")
     tight_layout()
