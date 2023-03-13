@@ -28,6 +28,8 @@ using Random
 using Images
 using JSON
 
+device = gpu
+
 matplotlib.use("agg")
 include(srcdir("dummy_src_file.jl"))
 
@@ -74,6 +76,7 @@ G.forward(randn(Float32,network_dict["nx"],network_dict["ny"],1,1));
 gen = invnormal(G.inverse(randn(Float32,network_dict["nx"],network_dict["ny"],1,1)));
 
 # generator now
+G = G |> device;
 G = reverse(G);
 
 ## load compass
@@ -133,19 +136,19 @@ logK0 = deepcopy(logK)
 logK0[v.>3.5] .= mean(logK[v.>3.5])
 logK_init = deepcopy(logK0)
 
-z = G.inverse(Float32.(normal(reshape(Float32.(logK0), ns[1], ns[end], 1, 1))))
-#z = 0 * z
+z = G.inverse(Float32.(normal(reshape(Float32.(logK0), ns[1], ns[end], 1, 1))) |> device)
+z = 0 * z
 λ = 0f0
 
 ctrue = state[1:length(tstep)*prod(n)]
-init_misfit = norm(S(T(box_logK(invnormal(Float64.(G(z))[:,:,1,1]))), f)[1:length(tstep)*prod(n)]-ctrue)^2
+init_misfit = norm(S(T(box_logK(invnormal(Float64.(G(z)|>cpu)[:,:,1,1]))), f)[1:length(tstep)*prod(n)]-ctrue)^2
 function obj(z)
-    global logK_j = box_logK(invnormal(Float64.(G(z))[:,:,1,1]))
+    global logK_j = box_logK(invnormal(Float64.(G(z)|>cpu)[:,:,1,1]))
     global c_j = S(T(logK_j), f)
     return .5 * norm(c_j[1:length(tstep)*prod(n)]-ctrue)^2/init_misfit + .5f0 * λ^2f0 * norm(z)^2f0/length(z) 
 end
 
-logK_init = box_logK(invnormal(Float64.(G(z))[:,:,1,1]))
+logK_init = box_logK(invnormal(Float64.(G(z)|>cpu)[:,:,1,1]))
 @time state_init = S(T(logK_init), f)
 
 ls = BackTracking(order=3, iterations=10)

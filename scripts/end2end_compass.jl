@@ -61,7 +61,7 @@ K = Float64.(Kh * md);
 model = jutulModel(ns, ds, ϕ, K1to3(K; kvoverkh=0.1); h=h)
 
 ## simulation time steppings
-tstep = 365.25 * 2.5 * ones(10)
+tstep = 365.25 * 5 * ones(5)
 tot_time = sum(tstep)
 
 ## injection & production
@@ -207,7 +207,7 @@ fhistory = zeros(niterations)
 
 ### inversion initialization
 logK0 = deepcopy(logK)
-logK0[v.>3.5] .= mean(logK[v.>3.5])
+logK0[v.>3.5] .= log(100. * md)
 dlogK = 0 .* logK0
 logK_init = deepcopy(logK0)
 y_init = box_co2(O(S(T(logK_init), f)))
@@ -269,14 +269,14 @@ for j=1:niterations
     SNR = -2f1 * log10(norm(K-exp.(logK_j))/norm(K))
     fig = figure(figsize=(20,12));
     subplot(2,2,1);
-    imshow(exp.(logK_j)'./md, norm=matplotlib.colors.LogNorm(vmin=200, vmax=maximum(exp.(logK)./md)));title("inversion, $(j-1) iter");colorbar();
+    imshow(exp.(logK_j)'./md, norm=matplotlib.colors.LogNorm(vmin=200, vmax=maximum(exp.(logK)./md)));title("inversion, $(j) iter");colorbar();
     subplot(2,2,2);
     imshow(K'./md, norm=matplotlib.colors.LogNorm(vmin=200, vmax=maximum(exp.(logK)./md)));title("GT permeability");colorbar();
     subplot(2,2,3);
     imshow(exp.(logK_init)'./md, norm=matplotlib.colors.LogNorm(vmin=200, vmax=maximum(exp.(logK)./md)));title("initial permeability");colorbar();
     subplot(2,2,4);
     imshow(abs.(K'-exp.(logK_j)')./md.+eps(), norm=matplotlib.colors.LogNorm(vmin=200, vmax=maximum(exp.(logK)./md)));title("abs error, SNR=$SNR");colorbar();
-    suptitle("End-to-end Inversion at iter $(j-1)")
+    suptitle("End-to-end Inversion at iter $(j)")
     tight_layout()
     safesave(joinpath(plotsdir(sim_name, exp_name), savename(fig_name; digits=6)*"_K.png"), fig);
     close(fig)
@@ -284,7 +284,7 @@ for j=1:niterations
     ## loss
     fig = figure(figsize=(20,12));
     plot(fhistory[1:j]);title("loss=$(fhistory[j])");
-    suptitle("End-to-end Inversion at iter $(j-1)")
+    suptitle("End-to-end Inversion at iter $(j)")
     tight_layout()
     safesave(joinpath(plotsdir(sim_name, exp_name), savename(fig_name; digits=6)*"_loss.png"), fig);
     close(fig)
@@ -293,19 +293,19 @@ for j=1:niterations
     fig = figure(figsize=(20,12));
     for i = 1:5
         subplot(4,5,i);
-        imshow(y_init[2*i]', vmin=0, vmax=1);
+        imshow(y_init[i]', vmin=0, vmax=1);
         title("initial prediction at snapshot $(2*i)")
         subplot(4,5,i+5);
-        imshow(sw_true[2*i]', vmin=0, vmax=1);
+        imshow(sw_true[i]', vmin=0, vmax=1);
         title("true at snapshot $(i)")
         subplot(4,5,i+10);
-        imshow(c_j[2*i]', vmin=0, vmax=1);
+        imshow(c_j[i]', vmin=0, vmax=1);
         title("predict at snapshot $(2*i)")
         subplot(4,5,i+15);
-        imshow(5*(sw_true[2*i]'-c_j[2*i]'), vmin=-1, vmax=1, cmap="magma");
+        imshow(5*(sw_true[i]'-c_j[i]'), vmin=-1, vmax=1, cmap="magma");
         title("5X diff at snapshot $(2*i)")
     end
-    suptitle("End-to-end Inversion at iter $(j-1)")
+    suptitle("End-to-end Inversion at iter $(j)")
     tight_layout()
     safesave(joinpath(plotsdir(sim_name, exp_name), savename(fig_name; digits=6)*"_saturation.png"), fig);
     close(fig)
