@@ -4,8 +4,18 @@ using DrWatson
 @quickactivate "jutul-compass"
 
 using Pkg; Pkg.instantiate()
-using JutulDarcyRules
+
+nthreads = try
+    # Slurm
+    parse(Int, ENV["SLURM_CPUS_ON_NODE"])
+catch e
+    # Desktop
+    Sys.CPU_THREADS
+end
 using LinearAlgebra
+BLAS.set_num_threads(nthreads)
+
+using JutulDarcyRules
 using PyPlot
 using Flux
 using LineSearches
@@ -16,6 +26,7 @@ using InvertibleNetworks
 using GlowInvertibleNetwork
 using Random
 using Images
+using JSON
 
 matplotlib.use("agg")
 include(srcdir("dummy_src_file.jl"))
@@ -26,15 +37,16 @@ exp_name = "compass-NF"
 mkpath(datadir())
 mkpath(plotsdir())
 
+info = JSON.parsefile(projectdir("info.json"))
 
 ## load NF
-net_path = datadir("trained-NF", "clip_norm=10.0_depth=5_e=134_lr=0.0001_nc_hidden=512_normal_max=-27.238718_normal_min=-31.556208_nscales=4_ntrain=20480_nx=128_ny=80_α=0.05_αmin=0.001.jld2")
+net_path = datadir("trained-NF", info["_NF_NAME"])
 mkpath(datadir("trained-NF"))
 
 # Download the dataset into the data directory if it does not exist
 if ~isfile(net_path)
-        run(`wget https://www.dropbox.com/s/qd50ali3dy11oum/'
-        'clip_norm=10.0_depth=5_e=134_lr=0.0001_nc_hidden=512_normal_max=-27.238718_normal_min=-31.556208_nscales=4_ntrain=20480_nx=128_ny=80_α=0.05_αmin=0.001.jld2 -q -O $net_path`)
+        run(`wget $(info["_NF_LINK"])'
+        '$(info["_NF_NAME"]) -q -O $net_path`)
 end
 
 network_dict = JLD2.jldopen(net_path, "r");
@@ -64,99 +76,96 @@ gen = invnormal(G.inverse(randn(Float32,network_dict["nx"],network_dict["ny"],1,
 # generator now
 G = reverse(G);
 
-## grid size
-JLD2.@load datadir("BGCompass_tti_625m.jld2") m d rho;
-vp = 1f0./sqrt.(m)
+## load compass
+JLD2.@load datadir("image2023_v_rho.jld2") v rho
+vp = deepcopy(v)
+n = size(vp)
+d = (6f0, 6f0)
+
+cut_area = [1, n[1], 182, n[end]]
+v = Float64.(vp[cut_area[1]:cut_area[2], cut_area[3]:cut_area[4]])
+factor = (3,2)
 d = (6., 6.)
-n = size(m)
-
-# downsample
-cut_area = [201, 456, 182, n[end]]
-m = m[cut_area[1]:cut_area[2],cut_area[3]:cut_area[4]]
-h = (cut_area[3]-1) * d[end]
-v = Float64.(sqrt.(1f0./m));
-factor = 2
+h = 181 * d[end]
 v = 1.0./downsample(1.0./v, factor)
+ds = Float64.(d) .* factor;
 
-## flow dimension
 ns = (size(v,1), 1, size(v,2))
-ds = (d[1] * factor, 2000.0, d[2] * factor)
-Kh = VtoK(v, (ds[1], ds[end]));
+ds = (ds[1], ds[1]*ns[1], ds[2])
+
+Kh = VtoK.(v);
 K = Float64.(Kh * md);
 
 n = ns
 d = ds
 
 ϕ = 0.25
-model = jutulModel(n, d, ϕ, K1to3(K; kvoverkh=0.36); h=h)
+model = jutulModel(n, d, ϕ, K1to3(K; kvoverkh=0.1); h=h)
 
 ## simulation time steppings
-tstep = 365.25 * ones(15)
+tstep = 365.25 * 5 * ones(5)
 tot_time = sum(tstep)
 
 ## injection & production
-inj_loc = (Int(round(n[1]/2)), 1, n[end]-20) .* d
-irate = 0.3
-q = jutulForce(irate, [inj_loc])
+inj_loc = (128, 1, ns[end]-20) .* ds
+pore_volumes = ϕ * sum(v.>3.5) * prod(ds)
+irate = 0.2 * pore_volumes / tot_time / 24 / 60 / 60
+#irate = 0.3
+f = jutulVWell(irate, (inj_loc[1], inj_loc[2]); startz = 46 * ds[end], endz = 48 * ds[end])
 
 ## set up modeling operator
 S = jutulModeling(model, tstep)
 
 ## simulation
 mesh = CartesianMesh(model)
-T(x) = log.(KtoTrans(mesh, K1to3(exp.(x); kvoverkh=0.36)))
+T(x) = log.(KtoTrans(mesh, K1to3(exp.(x); kvoverkh=0.1)))
 
 logK = log.(K)
 
-@time state = S(T(logK), q)
-
-seal_mask = Kh.==1e-3
-set_seal(x::AbstractMatrix{T}) where T = x .* convert(typeof(x), (T(1) .- T.(seal_mask))) + convert(typeof(x), T(log(1e-3*md)) * T.(seal_mask))
+@time state = S(T(logK), f)
 
 # Main loop
 niterations = 500
 fhistory = zeros(niterations)
 
-function VtoK_nowater(v::Matrix{T}, d::Tuple{T, T}; α::T=T(20)) where T
-
-    n = size(v)
-    idx_ucfmt = find_water_bottom((v.-T(3.5)).*(v.>T(3.5)))
-
-    return vcat([vcat(
-        α * exp.(v[i,1:idx_ucfmt[i]-1]) .- α*exp(T(1.48)),
-        α*exp.(v[i,idx_ucfmt[i]:end])  .- α*exp(T(3.5)))' for i = 1:n[1]]...)
-end
-
-logK0 = log.(VtoK_nowater(v, (d[1], d[end])).*md)
+### inversion initialization
+logK0 = deepcopy(logK)
 logK0[v.>3.5] .= mean(logK[v.>3.5])
-logK0 = max.(logK0, log(20*md))
+logK_init = deepcopy(logK0)
 
-z = G.inverse(normal(reshape(Float32.(logK0), ns[1], ns[end], 1, 1)))
-z = 0 * z
+z = G.inverse(Float32.(normal(reshape(Float32.(logK0), ns[1], ns[end], 1, 1))))
+#z = 0 * z
 λ = 0f0
 
-# GD algorithm
-learning_rate = 1f-1
-lr_min = learning_rate*1f-2
-decay_rate = exp(log(lr_min/learning_rate)/niterations)
-opt = Flux.Optimiser(ExpDecay(learning_rate, decay_rate, 1, lr_min), Descent(1f0))
-
 ctrue = state[1:length(tstep)*prod(n)]
-init_misfit = norm(S(T(box_logK(set_seal(invnormal(Float64.(G(z))[:,:,1,1])))), q)[1:length(tstep)*prod(n)]-ctrue)^2
-function f(z)
-    global logK_j = box_logK(set_seal(invnormal(Float64.(G(z))[:,:,1,1])))
-    global c_j = S(T(logK_j), q)
+init_misfit = norm(S(T(box_logK(invnormal(Float64.(G(z))[:,:,1,1]))), f)[1:length(tstep)*prod(n)]-ctrue)^2
+function obj(z)
+    global logK_j = box_logK(invnormal(Float64.(G(z))[:,:,1,1]))
+    global c_j = S(T(logK_j), f)
     return .5 * norm(c_j[1:length(tstep)*prod(n)]-ctrue)^2/init_misfit + .5f0 * λ^2f0 * norm(z)^2f0/length(z) 
 end
 
-logK_init = box_logK(set_seal(invnormal(Float64.(G(z))[:,:,1,1])))
-@time state_init = S(T(logK_init), q)
+logK_init = box_logK(invnormal(Float64.(G(z))[:,:,1,1]))
+@time state_init = S(T(logK_init), f)
+
+ls = BackTracking(order=3, iterations=10)
 
 for j=1:niterations
 
-    @time fval, gs = Flux.withgradient(() -> f(z), Flux.params(z))
-    Flux.Optimise.update!(opt, z, gs[z])
+    @time fval, gs = Flux.withgradient(() -> obj(z), Flux.params(z))
     fhistory[j] = fval
+    g = gs[z]
+    p = -g
+
+    # linesearch
+    function f_(α)
+        misfit = obj(Float32.(z + α * p))
+        @show α, misfit
+        return misfit
+    end
+
+    step, fval = ls(f_, 10.0, fval, dot(g, p))
+    global z = Float32.(z + step * p)
     
     println("Inversion iteration no: ",j,"; function value: ",fval)
 
@@ -179,17 +188,17 @@ for j=1:niterations
     fig = figure(figsize=(20,12));
     for i = 1:5
         subplot(4,5,i);
-        imshow(reshape(Saturations(state_init.states[3*i]), n[1], n[end])', vmin=0, vmax=0.9); colorbar();
-        title("initial prediction at snapshot $(3*i)")
+        imshow(reshape(Saturations(state_init.states[i]), n[1], n[end])', vmin=0, vmax=0.9); colorbar();
+        title("initial prediction at snapshot $(i)")
         subplot(4,5,i+5);
-        imshow(reshape(Saturations(state.states[3*i]), n[1], n[end])', vmin=0, vmax=0.9); colorbar();
-        title("true at snapshot $(3*i)")
+        imshow(reshape(Saturations(state.states[i]), n[1], n[end])', vmin=0, vmax=0.9); colorbar();
+        title("true at snapshot $(i)")
         subplot(4,5,i+10);
-        imshow(reshape(Saturations(c_j.states[3*i]), n[1], n[end])', vmin=0, vmax=0.9); colorbar();
-        title("predict at snapshot $(3*i)")
+        imshow(reshape(Saturations(c_j.states[i]), n[1], n[end])', vmin=0, vmax=0.9); colorbar();
+        title("predict at snapshot $(i)")
         subplot(4,5,i+15);
-        imshow(5*abs.(reshape(Saturations(state.states[3*i]), n[1], n[end])'-reshape(Saturations(c_j.states[3*i]), n[1], n[end])'), vmin=0, vmax=0.9); colorbar();
-        title("5X diff at snapshot $(3*i)")
+        imshow(5*abs.(reshape(Saturations(state.states[i]), n[1], n[end])'-reshape(Saturations(c_j.states[i]), n[1], n[end])'), vmin=0, vmax=0.9); colorbar();
+        title("5X diff at snapshot $(i)")
     end
     suptitle("Flow Inversion at iter $j")
     tight_layout()

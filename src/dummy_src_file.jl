@@ -94,7 +94,7 @@ function ContJitter(l::Number, num::Int)
     return interval_center .+ randomshift
 end
 
-box_logK(x::AbstractArray{T}; upper=log(6000*md), lower=log(1e-3*md)) where T = max.(min.(x,T(upper)),T(lower))
+box_logK(x::AbstractArray{T}; upper=log(5304*md), lower=log(1e-3*md)) where T = max.(min.(x,T(upper)),T(lower))
 box_co2(x::AbstractArray{T}) where T = max.(min.(x,T(0.9)),T(0))
 box_co2(x::AbstractVector) = [box_co2(x[i]) for i = 1:length(x)]
 box_v(x::AbstractMatrix{T}; upper=4.7f0, lower=1.48f0) where T = max.(min.(x,T(upper)),T(lower))
