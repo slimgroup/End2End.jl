@@ -3,11 +3,11 @@ using DrWatson
 @quickactivate "jutul-compass"
 using Pkg; Pkg.instantiate();
 
-using ThreadPinning
-pinthreads(:cores)
 nthreads = try
     # Slurm
     parse(Int, ENV["SLURM_CPUS_ON_NODE"])
+    using ThreadPinning
+    pinthreads(:cores)
 catch e
     # Desktop
     Sys.CPU_THREADS
