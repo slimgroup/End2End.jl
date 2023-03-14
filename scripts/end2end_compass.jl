@@ -269,13 +269,13 @@ for j=1:niterations
     SNR = -2f1 * log10(norm(K-exp.(logK_j))/norm(K))
     fig = figure(figsize=(20,12));
     subplot(2,2,1);
-    imshow(exp.(logK_j)'./md, norm=matplotlib.colors.LogNorm(vmin=200, vmax=maximum(exp.(logK)./md)));title("inversion, $(j) iter");colorbar();
+    imshow(exp.(logK_j)'./md, norm=matplotlib.colors.LogNorm(vmin=50, vmax=maximum(exp.(logK)./md)));title("inversion, $(j) iter");colorbar();
     subplot(2,2,2);
-    imshow(K'./md, norm=matplotlib.colors.LogNorm(vmin=200, vmax=maximum(exp.(logK)./md)));title("GT permeability");colorbar();
+    imshow(K'./md, norm=matplotlib.colors.LogNorm(vmin=50, vmax=maximum(exp.(logK)./md)));title("GT permeability");colorbar();
     subplot(2,2,3);
-    imshow(exp.(logK_init)'./md, norm=matplotlib.colors.LogNorm(vmin=200, vmax=maximum(exp.(logK)./md)));title("initial permeability");colorbar();
+    imshow(exp.(logK_init)'./md, norm=matplotlib.colors.LogNorm(vmin=50, vmax=maximum(exp.(logK)./md)));title("initial permeability");colorbar();
     subplot(2,2,4);
-    imshow(abs.(K'-exp.(logK_j)')./md.+eps(), norm=matplotlib.colors.LogNorm(vmin=200, vmax=maximum(exp.(logK)./md)));title("abs error, SNR=$SNR");colorbar();
+    imshow(abs.(K'-exp.(logK_j)')./md.+eps(), norm=matplotlib.colors.LogNorm(vmin=50, vmax=maximum(exp.(logK)./md)));title("abs error, SNR=$SNR");colorbar();
     suptitle("End-to-end Inversion at iter $(j)")
     tight_layout()
     safesave(joinpath(plotsdir(sim_name, exp_name), savename(fig_name; digits=6)*"_K.png"), fig);
