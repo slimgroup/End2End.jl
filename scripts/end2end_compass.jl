@@ -139,7 +139,7 @@ idx_wb = minimum(find_water_bottom(vp.-minimum(vp)))
 extentx = (n[1]-1)*d[1];
 extentz = (n[2]-1)*d[2];
 
-mode = "both"
+mode = "transmission"
 if mode == "reflection"
     xsrc = [convertToCell(Float32.(ContJitter(extentx, nsrc))) for i=1:nv]
     zsrc = [convertToCell(range(10f0,stop=10f0,length=nsrc)) for i=1:nv]
