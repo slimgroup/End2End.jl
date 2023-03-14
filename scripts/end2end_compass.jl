@@ -138,23 +138,23 @@ idx_wb = minimum(find_water_bottom(vp.-minimum(vp)))
 extentx = (n[1]-1)*d[1];
 extentz = (n[2]-1)*d[2];
 
-mode = "transmission"
+mode = "both"
 if mode == "reflection"
-    xsrc = [ContJitter(extentx, nsrc) for i=1:nv]
+    xsrc = [convertToCell(ContJitter(extentx, nsrc)) for i=1:nv]
     zsrc = [convertToCell(range(10f0,stop=10f0,length=nsrc)) for i=1:nv]
     xrec = range(d[1],stop=(n[1]-1)*d[1],length=nrec)
     zrec = range((idx_wb-1)*d[2]-2f0,stop=(idx_wb-1)*d[2]-2f0,length=nrec)
 elseif mode == "transmission"
     xsrc = [convertToCell(range(d[1],stop=d[1],length=nsrc)) for i=1:nv]
-    zsrc = [convertToCell(range((idx_wb-1)*d[2]+10f0,stop=(n[2]-1)*d[2],length=nsrc)) for i=1:nv]
+    zsrc = [convertToCell(ContJitter(extentz, nsrc)) for i=1:nv]
     xrec = range((n[1]-1)*d[1],stop=(n[1]-1)*d[1], length=nrec)
     zrec = range((idx_wb-1)*d[2]+10f0,stop=(n[2]-1)*d[2],length=nrec)
 else
     # source locations -- half at the left hand side of the model, half on top
-    xsrc = convertToCell(vcat(range(d[1],stop=d[1],length=Int(nsrc/2)),range(d[1],stop=(n[1]-1)*d[1],length=Int(nsrc/2))))
-    zsrc = convertToCell(vcat(range((idx_wb-1)*d[2]+10f0,stop=(n[2]-1)*d[2],length=Int(nsrc/2)),range(10f0,stop=10f0,length=Int(nsrc/2))))
-    xrec = vcat(range((n[1]-1)*d[1],stop=(n[1]-1)*d[1], length=Int(nrec/2)),range(d[1],stop=(n[1]-1)*d[1],length=Int(nrec/2)))
-    zrec = vcat(range((idx_wb-1)*d[2]+10f0,stop=(n[2]-1)*d[2],length=Int(nrec/2)),range(10f0,stop=10f0,length=Int(nrec/2)))
+    xsrc = [convertToCell(vcat(ContJitter(extentx, div(nsrc,2)),range(d[1],stop=d[1],length=div(nsrc,2)))) for i = 1:nv]
+    zsrc = [convertToCell(vcat(range(10f0,stop=10f0,length=div(nsrc,2)),ContJitter(extentz, div(nsrc,2)))) for i = 1:nv]
+    xrec = vcat(range((n[1]-1)*d[1],stop=(n[1]-1)*d[1], length=div(nrec,2)),range(d[1],stop=(n[1]-1)*d[1],length=div(nrec,2)))
+    zrec = vcat(range((idx_wb-1)*d[2]+10f0,stop=(n[2]-1)*d[2],length=div(nrec,2)),range(10f0,stop=10f0,length=div(nrec,2)))
 end
 
 ysrc = convertToCell(range(0f0,stop=0f0,length=nsrc))
@@ -170,7 +170,7 @@ wavelet = ricker_wavelet(timeS, dtS, f0)
 q = [judiVector(srcGeometry[i], wavelet) for i = 1:nv]
 
 # set up simulation operators
-Fs = [judiModeling(models[i], srcGeometry[i], recGeometry) for i = 1:nv] # acoustic wave equation solver
+Fs = [judiModeling(models[i], srcGeometry[i], recGeometry; options=Options(IC="fwi")) for i = 1:nv] # acoustic wave equation solver
 
 ## wave physics
 function F(v::Vector{Matrix{Float32}})
