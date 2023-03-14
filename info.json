@@ -1,6 +1,6 @@
 {
     "_FNO_LINK": "https://www.dropbox.com/s/3q3g6ixzavaikdb/",
     "_FNO_NAME": "batch_size=8_dt=0.058824_ep=70_epochs=1000_learning_rate=0.0001_modet=9_modex=16_modez=16_nt=18_ntrain=5960_nvalid=40_s=1_width=20.jld2",
-    "_NF_LINK": "https://www.dropbox.com/s/lcrhlt1ofuw6hq5/",
-    "_NF_NAME": "clip_norm=10.0_depth=5_e=144_lr=0.0001_nc_hidden=512_normal_max=-25.852425_normal_min=-41.459695_nscales=4_ntrain=20480_nx=256_ny=80_α=0.05_αmin=0.001.jld2"
+    "_NF_LINK": "https://www.dropbox.com/s/xf89fvo7s5fb25x/",
+    "_NF_NAME": "clip_norm=10.0_depth=5_e=256_lr=0.0001_nc_hidden=512_normal_max=-25.852425_normal_min=-41.459695_nscales=4_ntrain=20480_nx=256_ny=80_α=0.05_αmin=0.001.jld2"
 }

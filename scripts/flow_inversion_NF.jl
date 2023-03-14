@@ -137,7 +137,6 @@ logK0[v.>3.5] .= mean(logK[v.>3.5])
 logK_init = deepcopy(logK0)
 
 z = G.inverse(Float32.(normal(reshape(Float32.(logK0), ns[1], ns[end], 1, 1))) |> device)
-z = 0 * z
 λ = 0f0
 
 ctrue = state[1:length(tstep)*prod(n)]
