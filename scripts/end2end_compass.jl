@@ -58,7 +58,8 @@ K = Float64.(Kh * md);
 
 # set up jutul model
 ϕ = 0.25
-model = jutulModel(ns, ds, ϕ, K1to3(K; kvoverkh=0.1); h=h)
+kvoverkh = 0.36
+model = jutulModel(ns, ds, ϕ, K1to3(K; kvoverkh=kvoverkh); h=h)
 
 ## simulation time steppings
 tstep = 365.25 * 5 * ones(5)
@@ -76,7 +77,7 @@ S = jutulModeling(model, tstep)
 
 ## simulation
 mesh = CartesianMesh(model)
-T(x) = log.(KtoTrans(mesh, K1to3(exp.(x); kvoverkh=0.1)))
+T(x) = log.(KtoTrans(mesh, K1to3(exp.(x); kvoverkh=kvoverkh)))
 
 logK = log.(K)
 
@@ -180,13 +181,13 @@ end
 
 # Define seismic data directory
 mkpath(datadir("seismic-data"))
-misc_dict = @strdict mode nsrc nrec nv f0 cut_area tstep factor d n
+misc_dict = @strdict mode nsrc nrec nv f0 cut_area tstep factor d n kvoverkh
 
 ### generate/load data
 if ~isfile(datadir("seismic-data", savename(misc_dict, "jld2"; digits=6)))
     println("generating data")
     global d_obs = [Fs[i]*q[i] for i = 1:nv]
-    seismic_dict = @strdict mode nsrc nrec nv f0 cut_area tstep factor d n d_obs q srcGeometry recGeometry model
+    seismic_dict = @strdict mode nsrc nrec nv f0 cut_area tstep factor d n d_obs q srcGeometry recGeometry model kvoverkh
     @tagsave(
         datadir("seismic-data", savename(seismic_dict, "jld2"; digits=6)),
         seismic_dict;
@@ -255,7 +256,7 @@ for j=1:niterations
     global dlogK = dlogK + step * p
 
     ### save intermediate results
-    save_dict = @strdict mode j nssample f0 dlogK logK0 g niterations nv nsrc nrec nv cut_area tstep factor n d fhistory mask
+    save_dict = @strdict mode j nssample f0 dlogK logK0 g niterations nv nsrc nrec nv cut_area tstep factor n d fhistory mask kvoverkh
     @tagsave(
         joinpath(datadir(sim_name, exp_name), savename(save_dict, "jld2"; digits=6)),
         save_dict;
@@ -263,7 +264,7 @@ for j=1:niterations
     )
 
     ## save figure
-    fig_name = @strdict mode j nssample f0 dlogK logK0 niterations nv nsrc nrec nv cut_area tstep factor n d fhistory mask
+    fig_name = @strdict mode j nssample f0 dlogK logK0 niterations nv nsrc nrec nv cut_area tstep factor n d fhistory mask kvoverkh
 
     ## compute true and plot
     SNR = -2f1 * log10(norm(K-exp.(logK_j))/norm(K))

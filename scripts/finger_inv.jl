@@ -4,7 +4,7 @@ using DrWatson
 @quickactivate "jutul-compass"
 
 using Pkg; Pkg.instantiate();
-using JutulDarcyAD
+using JutulDarcyRules
 using LinearAlgebra
 using PyPlot
 using Flux
@@ -12,7 +12,6 @@ using LineSearches
 using JLD2
 using Statistics
 
-matplotlib.use("agg")
 sim_name = "flow-inv"
 exp_name = "SEG-compass"
 
@@ -95,7 +94,7 @@ S = jutulModeling(model, tstep)
 
 ## simulation
 mesh = CartesianMesh(model)
-T(x) = log.(KtoTrans(mesh, K1to3(exp.(x); kvoverkh=0.1)))
+T(x) = log.(KtoTrans(mesh, K1to3(exp.(x); kvoverkh=0.36)))
 
 logK = log.(K)
 
