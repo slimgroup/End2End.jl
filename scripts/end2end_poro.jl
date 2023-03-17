@@ -32,7 +32,7 @@ Random.seed!(2023)
 matplotlib.use("agg")
 
 sim_name = "end2end-inv"
-exp_name = "vanilla"
+exp_name = "poro"
 
 mkpath(datadir())
 mkpath(plotsdir())
@@ -190,13 +190,13 @@ if ~isfile(datadir("seismic-data-with-poro", savename(misc_dict, "jld2"; digits=
     global d_obs = [Fs[i]*q[i] for i = 1:nv]
     seismic_dict = @strdict mode nsrc nrec nv f0 cut_area tstep factor d n d_obs q srcGeometry recGeometry model kvoverkh
     @tagsave(
-        datadir("seismic-data", savename(seismic_dict, "jld2"; digits=6)),
+        datadir("seismic-data-with-poro", savename(seismic_dict, "jld2"; digits=6)),
         seismic_dict;
         safe=true
     )
 else
     println("loading data")
-    JLD2.@load datadir("seismic-data", savename(misc_dict, "jld2"; digits=6)) d_obs
+    JLD2.@load datadir("seismic-data-with-poro", savename(misc_dict, "jld2"; digits=6)) d_obs
     global d_obs = d_obs
 end
 
@@ -216,8 +216,7 @@ dϕ = 0 .* ϕ
 
 logK0 = log.(ϕtoK.(ϕ0)*md)
 logK_init = deepcopy(logK0)
-
-@time state_init = S(T(logK_init), vec(padϕ(ϕ0)), f)
+@time y_init = box_co2(M(O(S(T(log.(ϕtoK.(ϕ0)*md)),vec(padϕ(ϕ0)),f))));
 
 for j=1:niterations
 
@@ -235,7 +234,7 @@ for j=1:niterations
 
     # objective function for inversion
     function obj(dϕ)
-        global ϕ_j = box_ϕ(ϕ+mask[end].*dϕ)
+        global ϕ_j = box_ϕ(ϕ0+mask[end].*dϕ)
         global c_j = box_co2(M(O(S(T(log.(ϕtoK.(ϕ_j)*md)),vec(padϕ(ϕ_j)),f))));
         global dpred_j = F(box_v(R(pad(c_j))))
         fval = .5f0 * norm(dpred_j-dobs)^2f0/nssample/nv
@@ -263,7 +262,7 @@ for j=1:niterations
         return Inf32
     end
 
-    step, fval = ls(f_, 1.0, fval, dot(g, p))
+    step, fval = ls(f_, 2e-1, fval, dot(g, p))
     global dϕ = dϕ + step * p
 
     ### save intermediate results
