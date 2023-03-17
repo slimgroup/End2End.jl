@@ -209,7 +209,7 @@ fhistory = zeros(niterations)
 
 #### inversion
 ϕ0 = deepcopy(ϕ)
-ϕ0[v.>3.5] .= 0.3
+ϕ0[v.>3.5] .= 0.4
 ϕ0_init = deepcopy(ϕ0)
 dϕ = 0 .* ϕ
 ϕ_init = deepcopy(ϕ0)
