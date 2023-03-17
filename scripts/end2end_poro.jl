@@ -209,7 +209,7 @@ fhistory = zeros(niterations)
 
 #### inversion
 ϕ0 = deepcopy(ϕ)
-ϕ0[v.>3.5] .= mean(ϕ[v.>3.5])
+ϕ0[v.>3.5] .= 0.3
 ϕ0_init = deepcopy(ϕ0)
 dϕ = 0 .* ϕ
 ϕ_init = deepcopy(ϕ0)
@@ -277,16 +277,16 @@ for j=1:niterations
     fig_name = @strdict mode j nssample f0 dϕ ϕ0 niterations nv nsrc nrec nv cut_area tstep factor n d fhistory mask kvoverkh
 
     ## compute true and plot
-    SNR = -2f1 * log10(norm(ϕ-ϕ0)/norm(ϕ))
+    SNR = -2f1 * log10(norm(ϕ-ϕ_j)/norm(ϕ))
     fig = figure(figsize=(20,12));
     subplot(2,2,1);
-    imshow(ϕ0', vmin=0, vmax=1);title("inversion, SNR=$(SNR)");colorbar();
+    imshow(ϕ_j', vmin=0, vmax=1);title("inversion, SNR=$(SNR)");colorbar();
     subplot(2,2,2);
     imshow(ϕ', vmin=0, vmax=1);title("GT permeability");colorbar();
     subplot(2,2,3);
     imshow(ϕ_init', vmin=0, vmax=1);title("initial permeability");colorbar();
     subplot(2,2,4);
-    imshow(ϕ0'-ϕ_init', vmin=0.5, vmax=0.5, cmap="magma");title("updated");colorbar();
+    imshow(ϕ_j'-ϕ_init', vmin=0.5, vmax=0.5, cmap="magma");title("updated");colorbar();
     suptitle("End-to-end Inversion at iter $(j)")
     tight_layout()
     safesave(joinpath(plotsdir(sim_name, exp_name), savename(fig_name; digits=6)*"_ϕ.png"), fig);
