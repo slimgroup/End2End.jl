@@ -1096,11 +1096,9 @@ version = "0.2.1"
 
 [[deps.JutulDarcyRules]]
 deps = ["ChainRulesCore", "Flux", "Jutul", "JutulDarcy", "LinearAlgebra", "Optim", "Statistics"]
-git-tree-sha1 = "0dafcb94de8ea7bc03815e8ddd428a223baf53b9"
-repo-rev = "main"
-repo-url = "https://github.com/slimgroup/JutulDarcyRules.jl.git"
+git-tree-sha1 = "7d660daec7e041b83001b31c6c65bb2a48fd0ddc"
 uuid = "41f0c4f5-9bdd-4ef1-8c3a-d454dff2d562"
-version = "0.2.2"
+version = "0.2.3"
 
 [[deps.Krylov]]
 deps = ["LinearAlgebra", "Printf", "SparseArrays"]

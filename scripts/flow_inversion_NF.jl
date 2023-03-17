@@ -137,7 +137,7 @@ logK0[v.>3.5] .= mean(logK[v.>3.5])
 logK_init = deepcopy(logK0)
 
 z = G.inverse(Float32.(normal(reshape(Float32.(logK0), ns[1], ns[end], 1, 1))) |> device)
-λ = 0f0
+λ = 1f0
 
 ctrue = state[1:length(tstep)*prod(n)]
 init_misfit = norm(S(T(box_logK(invnormal(Float64.(G(z)|>cpu)[:,:,1,1]))), f)[1:length(tstep)*prod(n)]-ctrue)^2
@@ -166,7 +166,7 @@ for j=1:niterations
         return misfit
     end
 
-    step, fval = ls(f_, 10.0, fval, dot(g, p))
+    step, fval = ls(f_, 100.0, fval, dot(g, p))
     global z = Float32.(z + step * p)
     
     println("Inversion iteration no: ",j,"; function value: ",fval)

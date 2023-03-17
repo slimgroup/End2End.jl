@@ -11,6 +11,10 @@ using Flux
 using LineSearches
 using JLD2
 using Statistics
+using Polynomials
+
+include(srcdir("dummy_src_file.jl"))
+matplotlib.use("agg")
 
 sim_name = "flow-inv"
 exp_name = "SEG-compass"
@@ -73,10 +77,10 @@ gcf()
 =#
 K = Float64.(Kh * md);
 n = (size(K,1), 1, size(K,2))
-d = (d[1], d[1]*n[1], d[2])
+d = (d[1], d[1]*n[1]/5, d[2])
 
-ϕ = 0.25
-model = jutulModel(n, d, ϕ, K1to3(K; kvoverkh=0.36); h=h)
+ϕ = Ktoϕ.(Kh)
+model = jutulModel(n, d, vec(padϕ(ϕ)), K1to3(K; kvoverkh=0.36), h)
 
 ## simulation time steppings
 tstep = 365.25 * 5 * ones(5)
@@ -84,8 +88,9 @@ tot_time = sum(tstep)
 
 ## injection & production
 inj_loc = (128, 1, n[end]-20) .* d
-pore_volumes = ϕ * sum(v.>3.5) * prod(d)
+pore_volumes = sum(ϕ[2:end-1,1:end-1] .* (v[2:end-1,1:end-1].>3.5)) * prod(d)
 irate = 0.2 * pore_volumes / tot_time / 24 / 60 / 60
+#irate = 0.889681478439425
 #irate = 0.3
 q = jutulVWell(irate, (inj_loc[1], inj_loc[2]); startz = 46 * d[end], endz = 48 * d[end])
 
@@ -93,19 +98,22 @@ q = jutulVWell(irate, (inj_loc[1], inj_loc[2]); startz = 46 * d[end], endz = 48 
 S = jutulModeling(model, tstep)
 
 ## simulation
-mesh = CartesianMesh(model)
-T(x) = log.(KtoTrans(mesh, K1to3(exp.(x); kvoverkh=0.36)))
+mesh_ = CartesianMesh(model)
+T(x) = log.(KtoTrans(mesh_, K1to3(exp.(x); kvoverkh=0.36)))
 
 logK = log.(K)
 
-@time state = S(T(logK), q)
+@time state = S(T(logK), vec(padϕ(ϕ)), q)
 
 #### inversion
-logK0 = deepcopy(logK)
-logK0[v.>3.5] .= mean(logK[v.>3.5])
+ϕ0 = deepcopy(ϕ)
+ϕ0[v.>3.5] .= mean(ϕ[v.>3.5])
+ϕ0_init = deepcopy(ϕ0)
+
+logK0 = log.(ϕtoK.(ϕ0)*md)
 logK_init = deepcopy(logK0)
 
-@time state_init = S(T(logK_init), q)
+@time state_init = S(T(logK_init), vec(padϕ(ϕ0)), q)
 
 extent = (0f0, (d[1]-1)*n[1], (d[end]-1)*n[end]+h, 0f0+h)
 figure(figsize=(10,6))
@@ -132,10 +140,10 @@ imshow(reshape(Pressure(state_init.states[end]), n[1], n[end])', extent=extent, 
 tight_layout()
 savefig("p.png", bbox_inches="tight", dpi=300)
 
-f(logK) = .5 * norm(S(T(logK),q)[1:length(tstep)*prod(n)]-state[1:length(tstep)*prod(n)])^2
+f(ϕ) = .5 * norm(S(T(log.(ϕtoK.(ϕ)*md)),vec(padϕ(ϕ)),q)[1:length(tstep)*prod(n)]-state[1:length(tstep)*prod(n)])^2
 ls = BackTracking(order=3, iterations=10)
 
-lower, upper = log(1e-3 * md), log(6e3 * md)
+lower, upper = 0, 1
 prj(x) = max.(min.(x,upper),lower)
 # Main loop
 niterations = 100
@@ -143,8 +151,8 @@ fhistory = zeros(niterations)
 
 for j=1:niterations
 
-    @time fval, gs = Flux.withgradient(() -> f(logK0), Flux.params(logK0))
-    g = gs[logK0]
+    @time fval, gs = Flux.withgradient(() -> f(ϕ0), Flux.params(ϕ0))
+    g = gs[ϕ0]
     p = -g/norm(g, Inf)
     
     println("Inversion iteration no: ",j,"; function value: ",fval)
@@ -152,32 +160,37 @@ for j=1:niterations
 
     # linesearch
     function f_(α)
-        misfit = f(prj(logK0 .+ α * p))
-        @show α, misfit
-        return misfit
+        try
+            misfit = f(prj(ϕ0 .+ α * p))
+            @show α, misfit
+            return misfit
+        catch
+            return Inf32
+        end
+        return Inf32
     end
 
-    step, fval = ls(f_, 1e0, fval, dot(g, p))
+    step, fval = ls(f_, 2e-1, fval, dot(g, p))
 
     # Update model and bound projection
-    global logK0 = prj(logK0 .+ step .* p)
+    global ϕ0 = prj(ϕ0 .+ step .* p)
 
-    fig_name = @strdict j n d ϕ logK0 tstep irate niterations lower upper inj_loc
+    fig_name = @strdict j n d ϕ0 tstep irate niterations lower upper inj_loc
 
     ### plotting
     fig=figure(figsize=(20,12));
     subplot(1,3,1);
-    imshow(exp.(logK)'./md, vmin=minimum(exp.(logK))./md, vmax=maximum(exp.(logK)./md)); colorbar(); title("true permeability")
+    imshow(ϕ', vmin=0, vmax=1); colorbar(); title("true porosity")
     subplot(1,3,2);
-    imshow(exp.(logK0)'./md, vmin=minimum(exp.(logK))./md, vmax=maximum(exp.(logK)./md)); colorbar(); title("inverted permeability")
+    imshow(ϕ0', vmin=0, vmax=1); colorbar(); title("inverted porosity")
     subplot(1,3,3);
-    imshow(exp.(logK)'./md.-exp.(logK0)'./md, vmin=minimum(exp.(logK)), vmax=maximum(exp.(logK)./md)); colorbar(); title("diff")
+    imshow(abs.(ϕ'-ϕ0'), vmin=0, vmax=1); colorbar(); title("abs diff")
     suptitle("Flow Inversion at iter $j")
     tight_layout()
     safesave(joinpath(plotsdir(sim_name, exp_name), savename(fig_name; digits=6)*"_diff.png"), fig);
     close(fig)
 
-    state_predict = S(T(logK0), q)
+    state_predict = S(T(log.(ϕtoK.(ϕ0)*md)),vec(padϕ(ϕ0)),q)
 
     ## data fitting
     fig = figure(figsize=(20,12));

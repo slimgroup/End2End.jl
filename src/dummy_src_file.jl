@@ -94,10 +94,11 @@ function ContJitter(l::Number, num::Int)
     return interval_center .+ randomshift
 end
 
-box_logK(x::AbstractArray{T}; upper=log(5304*md), lower=log(1e-3*md)) where T = max.(min.(x,T(upper)),T(lower))
+box_ϕ(x::AbstractArray{T}; upper=T(1), lower=T(0)) where T = max.(min.(x,T(upper)),T(lower))
+box_logK(x::AbstractArray{T}; upper=T(log(5304*md)), lower=T(log(1e-3*md))) where T = max.(min.(x,T(upper)),T(lower))
 box_co2(x::AbstractArray{T}) where T = max.(min.(x,T(0.9)),T(0))
 box_co2(x::AbstractVector) = [box_co2(x[i]) for i = 1:length(x)]
-box_v(x::AbstractMatrix{T}; upper=4.7f0, lower=1.48f0) where T = max.(min.(x,T(upper)),T(lower))
+box_v(x::AbstractMatrix{T}; upper=T(4.7f0), lower=T(1.48f0)) where T = max.(min.(x,T(upper)),T(lower))
 box_v(x::AbstractVector) = [box_v(x[i]) for i = 1:length(x)]
 
 function dummy_JUDI_operation()
@@ -135,4 +136,21 @@ q = judiVector(srcGeometry, wavelet)
 F = judiModeling(model, srcGeometry, recGeometry)
 dobs = F * q
 return dobs
+end
+
+function padϕ(ϕ::Matrix{T}) where T
+    return hcat(vcat(T(1e8)*ones(T, 1, size(ϕ,2)-1), ϕ[2:end-1,1:end-1], T(1e8)*ones(T, 1, size(ϕ,2)-1)),
+    T(1e8)*ones(T, size(ϕ,1), 1))
+end
+
+
+## kozeny-carman relationship
+
+function ϕtoK(ϕ; α=1.527, β=0.0314)
+    return ϕ^3 * (α / (β * (1-ϕ)))^2
+end
+
+function Ktoϕ(K; α=1.527, β=0.0314)
+    p = Polynomial([-β^2*K,2*β^2*K,-β^2*K, α^2])
+    return minimum(real(roots(p)[findall(real(roots(p)).== roots(p))]))
 end
