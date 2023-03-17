@@ -286,7 +286,7 @@ for j=1:niterations
     subplot(2,2,3);
     imshow(ϕ_init', vmin=0, vmax=1);title("initial permeability");colorbar();
     subplot(2,2,4);
-    imshow(ϕ_j'-ϕ_init', vmin=0.5, vmax=0.5, cmap="magma");title("updated");colorbar();
+    imshow(ϕ_j'-ϕ_init', vmin=-0.5, vmax=0.5, cmap="magma");title("updated");colorbar();
     suptitle("End-to-end Inversion at iter $(j)")
     tight_layout()
     safesave(joinpath(plotsdir(sim_name, exp_name), savename(fig_name; digits=6)*"_ϕ.png"), fig);
