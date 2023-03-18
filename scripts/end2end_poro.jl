@@ -63,14 +63,17 @@ kvoverkh = 0.1
 model = jutulModel(ns, ds, vec(padϕ(ϕ)), K1to3(K; kvoverkh=kvoverkh), h)
 
 ## simulation time steppings
-tstep = 365.25 * 5 * ones(5)
+tstep = 365.25 * 12 * ones(5)
 tot_time = sum(tstep)
 
 ## injection & production
-inj_loc = (128, 1, ns[end]-20) .* ds
+inj_loc = (128, 1) .* ds
+startz = (ns[end]-10) * ds[end]
+endz = (ns[end]-8) * ds[end]
 pore_volumes = sum(ϕ[2:end-1,1:end-1] .* (v[2:end-1,1:end-1].>3.5)) * prod(ds)
 irate = 0.2 * pore_volumes / tot_time / 24 / 60 / 60
-f = jutulVWell(irate, (inj_loc[1], inj_loc[2]); startz = (ns[end]-10) * ds[end], endz = (ns[end]-8) * ds[end])
+
+f = jutulVWell(irate, inj_loc; startz = startz, endz = endz)
 
 ## set up modeling operator
 S = jutulModeling(model, tstep)
@@ -182,13 +185,13 @@ end
 
 # Define seismic data directory
 mkpath(datadir("seismic-data"))
-misc_dict = @strdict mode nsrc nrec nv f0 cut_area tstep factor d n kvoverkh
+misc_dict = @strdict mode nsrc nrec nv f0 cut_area tstep factor d n kvoverkh startz endz inj_loc
 
 ### generate/load data
 if ~isfile(datadir("seismic-data-with-poro", savename(misc_dict, "jld2"; digits=6)))
     println("generating data")
     global d_obs = [Fs[i]*q[i] for i = 1:nv]
-    seismic_dict = @strdict mode nsrc nrec nv f0 cut_area tstep factor d n d_obs q srcGeometry recGeometry model kvoverkh
+    seismic_dict = @strdict mode nsrc nrec nv f0 cut_area tstep factor d n d_obs q srcGeometry recGeometry model kvoverkh startz endz inj_loc
     @tagsave(
         datadir("seismic-data-with-poro", savename(seismic_dict, "jld2"; digits=6)),
         seismic_dict;
@@ -209,7 +212,7 @@ fhistory = zeros(niterations)
 
 #### inversion
 ϕ0 = deepcopy(ϕ)
-ϕ0[v.>3.5] .= 0.4
+ϕ0[v.>3.5] .= mean(ϕ[v.>3.5])
 ϕ0_init = deepcopy(ϕ0)
 dϕ = 0 .* ϕ
 ϕ_init = deepcopy(ϕ0)
