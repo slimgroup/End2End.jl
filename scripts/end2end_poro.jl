@@ -67,7 +67,7 @@ tstep = 365.25 * 12 * ones(5)
 tot_time = sum(tstep)
 
 ## injection & production
-inj_loc = (128, 1) .* ds
+inj_loc = (128, 1) .* ds[1:2]
 startz = (ns[end]-10) * ds[end]
 endz = (ns[end]-8) * ds[end]
 pore_volumes = sum(ϕ[2:end-1,1:end-1] .* (v[2:end-1,1:end-1].>3.5)) * prod(ds)
