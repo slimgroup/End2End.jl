@@ -58,7 +58,7 @@ Kh = VtoK.(v);
 K = Float64.(Kh * md);
 
 # set up jutul model
-kvoverkh = 0.36
+kvoverkh = 0.1
 ϕ = Ktoϕ.(Kh)
 model = jutulModel(ns, ds, vec(padϕ(ϕ)), K1to3(K; kvoverkh=kvoverkh), h)
 
@@ -70,7 +70,7 @@ tot_time = sum(tstep)
 inj_loc = (128, 1, ns[end]-20) .* ds
 pore_volumes = sum(ϕ[2:end-1,1:end-1] .* (v[2:end-1,1:end-1].>3.5)) * prod(ds)
 irate = 0.2 * pore_volumes / tot_time / 24 / 60 / 60
-f = jutulVWell(irate, (inj_loc[1], inj_loc[2]); startz = 46 * ds[end], endz = 48 * ds[end])
+f = jutulVWell(irate, (inj_loc[1], inj_loc[2]); startz = (ns[end]-10) * ds[end], endz = (ns[end]-8) * ds[end])
 
 ## set up modeling operator
 S = jutulModeling(model, tstep)

@@ -80,10 +80,11 @@ n = (size(K,1), 1, size(K,2))
 d = (d[1], d[1]*n[1]/5, d[2])
 
 ϕ = Ktoϕ.(Kh)
-model = jutulModel(n, d, vec(padϕ(ϕ)), K1to3(K; kvoverkh=0.36), h)
+kvoverkh = 0.1
+model = jutulModel(n, d, vec(padϕ(ϕ)), K1to3(K; kvoverkh=kvoverkh), h)
 
 ## simulation time steppings
-tstep = 365.25 * 5 * ones(5)
+tstep = 365.25 * 12 * ones(5)
 tot_time = sum(tstep)
 
 ## injection & production
@@ -92,14 +93,14 @@ pore_volumes = sum(ϕ[2:end-1,1:end-1] .* (v[2:end-1,1:end-1].>3.5)) * prod(d)
 irate = 0.2 * pore_volumes / tot_time / 24 / 60 / 60
 #irate = 0.889681478439425
 #irate = 0.3
-q = jutulVWell(irate, (inj_loc[1], inj_loc[2]); startz = 46 * d[end], endz = 48 * d[end])
+q = jutulVWell(irate, (inj_loc[1], inj_loc[2]); startz = (n[end]-10) * d[end], endz = (n[end]-8) * d[end])
 
 ## set up modeling operator
 S = jutulModeling(model, tstep)
 
 ## simulation
 mesh_ = CartesianMesh(model)
-T(x) = log.(KtoTrans(mesh_, K1to3(exp.(x); kvoverkh=0.36)))
+T(x) = log.(KtoTrans(mesh_, K1to3(exp.(x); kvoverkh=kvoverkh)))
 
 logK = log.(K)
 
@@ -115,27 +116,43 @@ logK_init = deepcopy(logK0)
 
 @time state_init = S(T(logK_init), vec(padϕ(ϕ0)), q)
 
-extent = (0f0, (d[1]-1)*n[1], (d[end]-1)*n[end]+h, 0f0+h)
+extent = (0f0, (n[1]-1)*d[1], (n[end]-1)*d[end]+h, 0f0+h)
 figure(figsize=(10,6))
 subplot(2,2,1);
+scatter(range(q.loc[1][1], stop=q.loc[1][1], length=3), h .+ range(q.startz, stop=q.endz, length=3), label="injection well", marker="x", color="black", s=30);
+legend()
 imshow(exp.(logK)'./md, norm=matplotlib.colors.LogNorm(vmin=100, vmax=maximum(exp.(logK)./md)), extent=extent, aspect="auto"); xlabel("X [m]"); ylabel("Z [m]"); colorbar(); title("true permeability");
 subplot(2,2,2);
+scatter(range(q.loc[1][1], stop=q.loc[1][1], length=3), h .+ range(q.startz, stop=q.endz, length=3), label="injection well", marker="x", color="black", s=30);
+legend()
 imshow(exp.(logK0)'./md, norm=matplotlib.colors.LogNorm(vmin=100, vmax=maximum(exp.(logK)./md)), extent=extent, aspect="auto"); xlabel("X [m]"); ylabel("Z [m]"); colorbar(); title("init permeability");
 subplot(2,2,3);
+scatter(range(q.loc[1][1], stop=q.loc[1][1], length=3), h .+ range(q.startz, stop=q.endz, length=3), label="injection well", marker="x", color="black", s=30);
+legend()
 imshow(reshape(Saturations(state.states[end]), n[1], n[end])', extent=extent, aspect="auto", cmap="gnuplot"); xlabel("X [m]"); ylabel("Z [m]"); colorbar();title("true saturation after $(tot_time/365.25) years");
 subplot(2,2,4);
+scatter(range(q.loc[1][1], stop=q.loc[1][1], length=3), h .+ range(q.startz, stop=q.endz, length=3), label="injection well", marker="x", color="black", s=30);
+legend()
 imshow(reshape(Saturations(state_init.states[end]), n[1], n[end])', extent=extent, aspect="auto", cmap="gnuplot"); xlabel("X [m]"); ylabel("Z [m]"); colorbar();title("init saturation after $(tot_time/365.25) years");
 tight_layout()
 savefig("sat.png", bbox_inches="tight", dpi=300)
 
 figure(figsize=(10,6))
 subplot(2,2,1);
+scatter(range(q.loc[1][1], stop=q.loc[1][1], length=3), h .+ range(q.startz, stop=q.endz, length=3), label="injection well", marker="x", color="black", s=30);
+legend()
 imshow(exp.(logK)'./md, norm=matplotlib.colors.LogNorm(vmin=100, vmax=maximum(exp.(logK)./md)), extent=extent, aspect="auto"); xlabel("X [m]"); ylabel("Z [m]"); colorbar(); title("true permeability");
 subplot(2,2,2);
+scatter(range(q.loc[1][1], stop=q.loc[1][1], length=3), h .+ range(q.startz, stop=q.endz, length=3), label="injection well", marker="x", color="black", s=30);
+legend()
 imshow(exp.(logK0)'./md, norm=matplotlib.colors.LogNorm(vmin=100, vmax=maximum(exp.(logK)./md)), extent=extent, aspect="auto"); xlabel("X [m]"); ylabel("Z [m]"); colorbar(); title("init permeability");
 subplot(2,2,3);
+scatter(range(q.loc[1][1], stop=q.loc[1][1], length=3), h .+ range(q.startz, stop=q.endz, length=3), label="injection well", marker="x", color="black", s=30);
+legend()
 imshow(reshape(Pressure(state.states[end]), n[1], n[end])', extent=extent, aspect="auto"); xlabel("X [m]"); ylabel("Z [m]"); colorbar();title("true pressure after $(tot_time/365.25) years");
 subplot(2,2,4);
+scatter(range(q.loc[1][1], stop=q.loc[1][1], length=3), h .+ range(q.startz, stop=q.endz, length=3), label="injection well", marker="x", color="black", s=30);
+legend()
 imshow(reshape(Pressure(state_init.states[end]), n[1], n[end])', extent=extent, aspect="auto"); xlabel("X [m]"); ylabel("Z [m]"); colorbar();title("init pressure after $(tot_time/365.25) years");
 tight_layout()
 savefig("p.png", bbox_inches="tight", dpi=300)
