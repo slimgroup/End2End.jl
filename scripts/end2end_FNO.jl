@@ -4,6 +4,17 @@ using DrWatson
 @quickactivate "jutul-compass"
 
 using Pkg; Pkg.instantiate();
+nthreads = try
+    # Slurm
+    parse(Int, ENV["SLURM_CPUS_ON_NODE"])
+    using ThreadPinning
+    pinthreads(:cores)
+catch e
+    # Desktop
+    Sys.CPU_THREADS
+end
+using LinearAlgebra
+BLAS.set_num_threads(nthreads)
 include(srcdir("dummy_src_file.jl"))
 using JUDI
 dummy_JUDI_operation()
@@ -95,12 +106,7 @@ T(x) = log.(KtoTrans(mesh, K1to3(exp.(x); kvoverkh=0.36)))
 logK = log.(K)
 
 # Download the dataset into the data directory if it does not exist
-mkpath(datadir("flow-data"))
-if ~isfile(datadir("flow-data", "true_state.jld2"))
-    run(`wget https://www.dropbox.com/s/ts2wntxnqy1zqdr/'
-        'true_state.jld2 -q -O $(datadir("flow-data", "true_state.jld2"))`)
-end
-JLD2.@load datadir("flow-data", "true_state.jld2") state
+@time state = S(T(logK), f)
 
 ### observed states
 nv = length(tstep)
