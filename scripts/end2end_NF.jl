@@ -258,7 +258,7 @@ G = G |> device;
 G = reverse(G);
 
 z = G.inverse(Float32.(normal(reshape(Float32.(logK0), ns[1], ns[end], 1, 1))) |> device)
-λ = 1f0
+λ = 4f0
 
 for j=1:niterations
 
@@ -299,6 +299,7 @@ for j=1:niterations
     global z = Float32.(z + step * p)
         
     println("Inversion iteration no: ",j,"; function value: ",fval)
+    fhistory[j] = fval
     
     ### save intermediate results
     save_dict = @strdict mode j λ z nssample f0 logK_j g step niterations nv nsrc nrec nv cut_area tstep factor n d fhistory mask kvoverkh
