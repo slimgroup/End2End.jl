@@ -295,7 +295,7 @@ for j=1:niterations
         return misfit
     end
     
-    step, fval = ls(f_, 1f0, fval, dot(g, p))
+    step, fval = ls(f_, 0.3f0, fval, dot(g, p))
     global z = Float32.(z + step * p)
         
     println("Inversion iteration no: ",j,"; function value: ",fval)
