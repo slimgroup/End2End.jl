@@ -106,7 +106,7 @@ T(x) = log.(KtoTrans(mesh, K1to3(exp.(x); kvoverkh=0.36)))
 logK = log.(K)
 
 # Download the dataset into the data directory if it does not exist
-@time state = S(T(logK), f)
+@time state = Sjutul(T(logK), f)
 
 ### observed states
 nv = length(tstep)
