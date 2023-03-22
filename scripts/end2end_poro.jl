@@ -117,14 +117,16 @@ pad(c::Matrix{Float32}) =
     hcat(zeros(Float32, n[1], cut_area[3]-1),
     vcat(zeros(Float32, cut_area[1]-1, factor[2] * size(c,2)), repeat(c, inner=factor), zeros(Float32, n[1]-cut_area[2], factor[2] * size(c,2))))
 pad(c::Vector{Matrix{Float32}}) = [pad(c[i]) for i = 1:nv]
+padϕ_(c::Matrix) =
+    hcat(1f-3*ones(Float32, n[1], cut_area[3]-1),
+    vcat(1f-3*ones(Float32, cut_area[1]-1, factor[2] * size(c,2)), repeat(Float32.(c), inner=factor), 1f-3*ones(Float32, n[1]-cut_area[2], factor[2] * size(c,2))))
 
 sw_pad = pad(sw_true)
 
 # set up rock physics
-phi = 0.25f0 * ones(Float32,n)  # porosity
-R(c::Vector{Matrix{Float32}}) = Patchy(c,1f3*vp,1f3*rho,phi; bulk_min = 5f10)[1]/1f3
-R(c::Vector{Matrix{Float32}}, phi::Matrix{Float32}) = Patchy(c,1f3*vp,1f3*rho,phi; bulk_min = 5f10)[1]/1f3
-vps = R(sw_pad)   # time-varying vp
+R(c::Vector{Matrix{Float32}}) = Patchy(c,1f3*vp,1f3*rho,0.25f0 * ones(Float32,n); bulk_min = 5f10)[1]/1f3
+R(c::Vector{Matrix{Float32}}, phi::Matrix{Float32}) = Patchy(c,1f3*vp,1f3*rho,phi; bulk_min = 6.1f10)[1]/1f3
+vps = R(sw_pad, padϕ_(ϕ))   # time-varying vp
 
 ##### Wave equation
 o = (0f0, 0f0)          # origin
@@ -239,7 +241,7 @@ for j=1:niterations
     function obj(dϕ)
         global ϕ_j = box_ϕ(ϕ0+mask[end].*dϕ)
         global c_j = box_co2(M(O(S(T(log.(ϕtoK.(ϕ_j)*md)),vec(padϕ(ϕ_j)),f))));
-        global dpred_j = F(box_v(R(pad(c_j))))
+        global dpred_j = F(box_v(R(pad(c_j),padϕ_(ϕ_j))))
         fval = .5f0 * norm(dpred_j-dobs)^2f0/nssample/nv
         @show fval
         return fval
@@ -259,7 +261,8 @@ for j=1:niterations
             misfit = obj(dϕ + α * p)
             @show α, misfit
             return misfit
-        catch
+        catch e
+            @show e
             return Inf32
         end
         return Inf32
@@ -283,11 +286,11 @@ for j=1:niterations
     SNR = -2f1 * log10(norm(ϕ-ϕ_j)/norm(ϕ))
     fig = figure(figsize=(20,12));
     subplot(2,2,1);
-    imshow(ϕ_j', vmin=0, vmax=1);title("inversion, SNR=$(SNR)");colorbar();
+    imshow(ϕ_j', vmin=0, vmax=0.65);title("inversion, SNR=$(SNR)");colorbar();
     subplot(2,2,2);
-    imshow(ϕ', vmin=0, vmax=1);title("GT permeability");colorbar();
+    imshow(ϕ', vmin=0, vmax=0.65);title("GT permeability");colorbar();
     subplot(2,2,3);
-    imshow(ϕ_init', vmin=0, vmax=1);title("initial permeability");colorbar();
+    imshow(ϕ_init', vmin=0, vmax=0.65);title("initial permeability");colorbar();
     subplot(2,2,4);
     imshow(ϕ_j'-ϕ_init', vmin=-0.5, vmax=0.5, cmap="magma");title("updated");colorbar();
     suptitle("End-to-end Inversion at iter $(j)")
