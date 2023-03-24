@@ -6,12 +6,12 @@ using Pkg; Pkg.instantiate();
 nthreads = try
     # Slurm
     parse(Int, ENV["SLURM_CPUS_ON_NODE"])
-    using ThreadPinning
-    pinthreads(:cores)
 catch e
     # Desktop
     Sys.CPU_THREADS
 end
+using ThreadPinning
+pinthreads(:cores)
 using LinearAlgebra
 BLAS.set_num_threads(nthreads)
 
@@ -59,7 +59,8 @@ K = Float64.(Kh * md);
 
 # set up jutul model
 kvoverkh = 0.1
-ϕ = Ktoϕ.(Kh)
+α = 6.0
+ϕ = Ktoϕ.(Kh; α=α)
 model = jutulModel(ns, ds, vec(padϕ(ϕ)), K1to3(K; kvoverkh=kvoverkh), h)
 
 ## simulation time steppings
@@ -68,8 +69,8 @@ tot_time = sum(tstep)
 
 ## injection & production
 inj_loc = (128, 1) .* ds[1:2]
-startz = (ns[end]-10) * ds[end]
-endz = (ns[end]-8) * ds[end]
+startz = (ns[end]-18) * ds[end]
+endz = (ns[end]-16) * ds[end]
 pore_volumes = sum(ϕ[2:end-1,1:end-1] .* (v[2:end-1,1:end-1].>3.5)) * prod(ds)
 irate = 0.2 * pore_volumes / tot_time / 24 / 60 / 60
 
@@ -84,7 +85,7 @@ T(x) = log.(KtoTrans(mesh, K1to3(exp.(x); kvoverkh=kvoverkh)))
 
 logK = log.(K)
 
-@time state = S(T(log.(ϕtoK.(ϕ)*md)),vec(padϕ(ϕ)),f)
+@time state = S(T(log.(ϕtoK.(ϕ;α=α)*md)),vec(padϕ(ϕ)),f)
 
 ### observed states
 nv = length(tstep)
@@ -105,7 +106,7 @@ for i = 1:nv
     mask_i[max(1, first_i-5):min(end_i+5, size(sw_true[i],1)), :] .= 1f0
     mask_i = Float32.(imfilter(mask_i, Kernel.gaussian(3)))
     for j in axes(mask_i, 1)
-        mask_i[j,1:known_idx[j]] .= 0f0
+        mask_i[j,1:known_idx[j]+5] .= 0f0
     end
     mask[i] = mask_i
 
@@ -124,8 +125,9 @@ padϕ_(c::Matrix) =
 sw_pad = pad(sw_true)
 
 # set up rock physics
+bulk_min = Float32.(1f9 .* rho .* 5f0/9f0 .* vp.^2f0 .* 2f0 .* padϕ_(ϕ)/mean(ϕ[v.>3.5]))
 R(c::Vector{Matrix{Float32}}) = Patchy(c,1f3*vp,1f3*rho,0.25f0 * ones(Float32,n); bulk_min = 5f10)[1]/1f3
-R(c::Vector{Matrix{Float32}}, phi::Matrix{Float32}) = Patchy(c,1f3*vp,1f3*rho,phi; bulk_min = 6.1f10)[1]/1f3
+R(c::Vector{Matrix{Float32}}, phi::Matrix{Float32}) = Patchy(c,1f3*vp,1f3*rho,phi; bulk_min = bulk_min)[1]/1f3
 vps = R(sw_pad, padϕ_(ϕ))   # time-varying vp
 
 ##### Wave equation
@@ -145,7 +147,7 @@ idx_wb = minimum(find_water_bottom(vp.-minimum(vp)))
 extentx = (n[1]-1)*d[1];
 extentz = (n[2]-1)*d[2];
 
-mode = "both"
+mode = "transmission"
 if mode == "reflection"
     xsrc = [convertToCell(Float32.(ContJitter(extentx, nsrc))) for i=1:nv]
     zsrc = [convertToCell(range(10f0,stop=10f0,length=nsrc)) for i=1:nv]
@@ -177,7 +179,7 @@ wavelet = ricker_wavelet(timeS, dtS, f0)
 q = [judiVector(srcGeometry[i], wavelet) for i = 1:nv]
 
 # set up simulation operators
-Fs = [judiModeling(models[i], srcGeometry[i], recGeometry; options=Options(IC="fwi")) for i = 1:nv] # acoustic wave equation solver
+Fs = [judiModeling(models[i], srcGeometry[i], recGeometry; options=Options()) for i = 1:nv] # acoustic wave equation solver
 
 ## wave physics
 function F(v::Vector{Matrix{Float32}})
@@ -187,13 +189,13 @@ end
 
 # Define seismic data directory
 mkpath(datadir("seismic-data"))
-misc_dict = @strdict mode nsrc nrec nv f0 cut_area tstep factor d n kvoverkh startz endz inj_loc
+misc_dict = @strdict mode nsrc nrec nv f0 cut_area tstep factor d n kvoverkh startz endz inj_loc α
 
 ### generate/load data
 if ~isfile(datadir("seismic-data-with-poro", savename(misc_dict, "jld2"; digits=6)))
     println("generating data")
     global d_obs = [Fs[i]*q[i] for i = 1:nv]
-    seismic_dict = @strdict mode nsrc nrec nv f0 cut_area tstep factor d n d_obs q srcGeometry recGeometry model kvoverkh startz endz inj_loc
+    seismic_dict = @strdict mode nsrc nrec nv f0 cut_area tstep factor d n d_obs q srcGeometry recGeometry model kvoverkh startz endz inj_loc α
     @tagsave(
         datadir("seismic-data-with-poro", savename(seismic_dict, "jld2"; digits=6)),
         seismic_dict;
@@ -214,14 +216,14 @@ fhistory = zeros(niterations)
 
 #### inversion
 ϕ0 = deepcopy(ϕ)
-ϕ0[v.>3.5] .= 0.45
+ϕ0[v.>3.5] .= 0.12
 ϕ0_init = deepcopy(ϕ0)
 dϕ = 0 .* ϕ
 ϕ_init = deepcopy(ϕ0)
 
-logK0 = log.(ϕtoK.(ϕ0)*md)
+logK0 = log.(ϕtoK.(ϕ0;α=α)*md)
 logK_init = deepcopy(logK0)
-@time y_init = box_co2(M(O(S(T(log.(ϕtoK.(ϕ0)*md)),vec(padϕ(ϕ0)),f))));
+@time y_init = box_co2(M(O(S(T(log.(ϕtoK.(ϕ0;α=α)*md)),vec(padϕ(ϕ0)),f))));
 
 for j=1:niterations
 
@@ -240,7 +242,7 @@ for j=1:niterations
     # objective function for inversion
     function obj(dϕ)
         global ϕ_j = box_ϕ(ϕ0+mask[end].*dϕ)
-        global c_j = box_co2(M(O(S(T(log.(ϕtoK.(ϕ_j)*md)),vec(padϕ(ϕ_j)),f))));
+        global c_j = box_co2(M(O(S(T(log.(ϕtoK.(ϕ_j;α=α)*md)),vec(padϕ(ϕ_j)),f))));
         global dpred_j = F(box_v(R(pad(c_j),padϕ_(ϕ_j))))
         fval = .5f0 * norm(dpred_j-dobs)^2f0/nssample/nv
         @show fval
@@ -272,7 +274,7 @@ for j=1:niterations
     global dϕ = dϕ + step * p
 
     ### save intermediate results
-    save_dict = @strdict mode j nssample f0 dϕ ϕ0 g niterations nv nsrc nrec nv cut_area tstep factor n d fhistory mask kvoverkh
+    save_dict = @strdict mode j nssample f0 dϕ ϕ0 g niterations nv nsrc nrec nv cut_area tstep factor n d fhistory mask kvoverkh α
     @tagsave(
         joinpath(datadir(sim_name, exp_name), savename(save_dict, "jld2"; digits=6)),
         save_dict;
@@ -280,7 +282,7 @@ for j=1:niterations
     )
 
     ## save figure
-    fig_name = @strdict mode j nssample f0 dϕ ϕ0 niterations nv nsrc nrec nv cut_area tstep factor n d fhistory mask kvoverkh
+    fig_name = @strdict mode j nssample f0 dϕ ϕ0 niterations nv nsrc nrec nv cut_area tstep factor n d fhistory mask kvoverkh α
 
     ## compute true and plot
     SNR = -2f1 * log10(norm(ϕ-ϕ_j)/norm(ϕ))

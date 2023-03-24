@@ -79,7 +79,8 @@ K = Float64.(Kh * md);
 n = (size(K,1), 1, size(K,2))
 d = (d[1], d[1]*n[1]/5, d[2])
 
-ϕ = Ktoϕ.(Kh)
+α = 6.0
+ϕ = Ktoϕ.(Kh; α=α)
 kvoverkh = 0.1
 model = jutulModel(n, d, vec(padϕ(ϕ)), K1to3(K; kvoverkh=kvoverkh), h)
 
@@ -93,7 +94,7 @@ pore_volumes = sum(ϕ[2:end-1,1:end-1] .* (v[2:end-1,1:end-1].>3.5)) * prod(d)
 irate = 0.2 * pore_volumes / tot_time / 24 / 60 / 60
 #irate = 0.889681478439425
 #irate = 0.3
-q = jutulVWell(irate, (inj_loc[1], inj_loc[2]); startz = (n[end]-10) * d[end], endz = (n[end]-8) * d[end])
+q = jutulVWell(irate, (inj_loc[1], inj_loc[2]); startz = (n[end]-18) * d[end], endz = (n[end]-16) * d[end])
 
 ## set up modeling operator
 S = jutulModeling(model, tstep)
@@ -108,10 +109,10 @@ logK = log.(K)
 
 #### inversion
 ϕ0 = deepcopy(ϕ)
-ϕ0[v.>3.5] .= 0.4
+ϕ0[v.>3.5] .= 0.12
 ϕ0_init = deepcopy(ϕ0)
 
-logK0 = log.(ϕtoK.(ϕ0)*md)
+logK0 = log.(ϕtoK.(ϕ0;α=α)*md)
 logK_init = deepcopy(logK0)
 
 @time state_init = S(T(logK_init), vec(padϕ(ϕ0)), q)
@@ -157,7 +158,8 @@ imshow(reshape(Pressure(state_init.states[end]), n[1], n[end])', extent=extent, 
 tight_layout()
 savefig("p.png", bbox_inches="tight", dpi=300)
 
-f(ϕ) = .5 * norm(S(T(log.(ϕtoK.(ϕ)*md)),vec(padϕ(ϕ)),q)[1:length(tstep)*prod(n)]-state[1:length(tstep)*prod(n)])^2
+weight = repeat(vec(ϕ), length(tstep))
+f(ϕ) = .5 * norm(S(T(log.(ϕtoK.(ϕ;α=α)*md)),vec(padϕ(ϕ)),q)[1:length(tstep)*prod(n)].*weight-state[1:length(tstep)*prod(n)].*weight)^2
 ls = BackTracking(order=3, iterations=10)
 
 lower, upper = 0, 1
@@ -207,7 +209,7 @@ for j=1:niterations
     safesave(joinpath(plotsdir(sim_name, exp_name), savename(fig_name; digits=6)*"_diff.png"), fig);
     close(fig)
 
-    state_predict = S(T(log.(ϕtoK.(ϕ0)*md)),vec(padϕ(ϕ0)),q)
+    state_predict = S(T(log.(ϕtoK.(ϕ0;α=α)*md)),vec(padϕ(ϕ0)),q)
 
     ## data fitting
     fig = figure(figsize=(20,12));
