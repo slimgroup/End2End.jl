@@ -145,7 +145,7 @@ idx_wb = minimum(find_water_bottom(vp.-minimum(vp)))
 extentx = (n[1]-1)*d[1];
 extentz = (n[2]-1)*d[2];
 
-mode = "transmission"
+mode = "both"
 if mode == "reflection"
     xsrc = [convertToCell(Float32.(ContJitter(extentx, nsrc))) for i=1:nv]
     zsrc = [convertToCell(range(10f0,stop=10f0,length=nsrc)) for i=1:nv]
@@ -214,7 +214,7 @@ fhistory = zeros(niterations)
 
 #### inversion
 ϕ0 = deepcopy(ϕ)
-ϕ0[v.>3.5] .= 0.4
+ϕ0[v.>3.5] .= 0.45
 ϕ0_init = deepcopy(ϕ0)
 dϕ = 0 .* ϕ
 ϕ_init = deepcopy(ϕ0)
