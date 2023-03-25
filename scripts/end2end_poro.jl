@@ -103,10 +103,10 @@ for i = 1:nv
     first_i = findfirst(energy_i.>0)
     end_i = findlast(energy_i.>0)
     mask_i = zeros(Float32, size(sw_true[i]))
-    mask_i[max(1, first_i-5):min(end_i+5, size(sw_true[i],1)), :] .= 1f0
+    mask_i[max(1, first_i-5):min(end_i+35, size(sw_true[i],1)), :] .= 1f0
     mask_i = Float32.(imfilter(mask_i, Kernel.gaussian(3)))
     for j in axes(mask_i, 1)
-        mask_i[j,1:known_idx[j]+5] .= 0f0
+        mask_i[j,1:known_idx[j]] .= 0f0
     end
     mask[i] = mask_i
 
@@ -127,7 +127,7 @@ sw_pad = pad(sw_true)
 # set up rock physics
 bulk_min = Float32.(1f9 .* rho .* 5f0/9f0 .* vp.^2f0 .* 2f0 .* padϕ_(ϕ)/mean(ϕ[v.>3.5]))
 R(c::Vector{Matrix{Float32}}) = Patchy(c,1f3*vp,1f3*rho,0.25f0 * ones(Float32,n); bulk_min = 5f10)[1]/1f3
-R(c::Vector{Matrix{Float32}}, phi::Matrix{Float32}) = Patchy(c,1f3*vp,1f3*rho,phi; bulk_min = bulk_min)[1]/1f3
+R(c::Vector{Matrix{Float32}}, phi::Matrix{Float32}) = Patchy(c,1f3*vp,1f3*rho,phi)[1]/1f3
 vps = R(sw_pad, padϕ_(ϕ))   # time-varying vp
 
 ##### Wave equation
@@ -216,7 +216,7 @@ fhistory = zeros(niterations)
 
 #### inversion
 ϕ0 = deepcopy(ϕ)
-ϕ0[v.>3.5] .= 0.12
+ϕ0[v.>3.5] .= 0.2
 ϕ0_init = deepcopy(ϕ0)
 dϕ = 0 .* ϕ
 ϕ_init = deepcopy(ϕ0)

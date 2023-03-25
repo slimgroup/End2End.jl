@@ -43,13 +43,16 @@ end
 #### Patchy saturation model
 
 function Patchy(sw::Matrix{T}, vp::Matrix{T}, rho::Matrix{T}, phi::Matrix{T};
-    bulk_min=T(36.6f9), bulk_fl1::T=T(2.735f9), bulk_fl2::T=T(0.125f9), ρw::T=T(700f0), ρo::T=T(1000.0f0)) where T
+    bulk_min=nothing, bulk_fl1::T=T(2.735f9), bulk_fl2::T=T(0.125f9), ρw::T=T(700f0), ρo::T=T(1000.0f0)) where T
 
     ### works for channel problem
     vs = vp./sqrt(3f0)
     bulk_sat1 = rho .* (vp.^2f0 - 4f0/3f0 .* vs.^2f0)
     shear_sat1 = rho .* (vs.^2f0)
 
+    if isnothing(bulk_min)
+        bulk_min = bulk_min_(bulk_sat1, phi)
+    end
     patch_temp = bulk_sat1 ./(bulk_min .- bulk_sat1) .- 
     bulk_fl1 ./ phi ./ (bulk_min .- bulk_fl1) .+ 
     bulk_fl2 ./ phi ./ (bulk_min .- bulk_fl2)
@@ -70,14 +73,14 @@ function Patchy(sw::Matrix{T}, vp::Matrix{T}, rho::Matrix{T}, phi::Matrix{T};
 end
 
 function Patchy(sw::Array{T, 3}, vp::Matrix{T}, rho::Matrix{T}, phi::Matrix{T};
-    bulk_min=T(36.6f9), bulk_fl1::T=T(2.735f9), bulk_fl2::T=T(0.125f9), ρw::T=T(700f0), ρo::T=T(1000.0f0)) where T
+    bulk_min=nothing, bulk_fl1::T=T(2.735f9), bulk_fl2::T=T(0.125f9), ρw::T=T(700f0), ρo::T=T(1000.0f0)) where T
 
     stack = [Patchy(sw[i,:,:], vp, rho, phi; bulk_min=bulk_min, bulk_fl1=bulk_fl1, bulk_fl2=bulk_fl2, ρw = ρw, ρo=ρo) for i = 1:size(sw,1)]
     return [stack[i][1] for i = 1:size(sw,1)], [stack[i][2] for i = 1:size(sw,1)]
 end
 
 function Patchy(sw::Vector{Matrix{T}}, vp::Matrix{T}, rho::Matrix{T}, phi::Matrix{T};
-    bulk_min=T(36.6f9), bulk_fl1::T=T(2.735f9), bulk_fl2::T=T(0.125f9), ρw::T=T(700f0), ρo::T=T(1000.0f0)) where T
+    bulk_min=nothing, bulk_fl1::T=T(2.735f9), bulk_fl2::T=T(0.125f9), ρw::T=T(700f0), ρo::T=T(1000.0f0)) where T
 
     stack = [Patchy(sw[i], vp, rho, phi; bulk_min=bulk_min, bulk_fl1=bulk_fl1, bulk_fl2=bulk_fl2, ρw = ρw, ρo=ρo) for i = 1:size(sw,1)]
     return [stack[i][1] for i = 1:size(sw,1)], [stack[i][2] for i = 1:size(sw,1)]
@@ -156,4 +159,10 @@ end
 function Ktoϕ(K; α=1.527, β=0.0314)
     p = Polynomial([-β^2*K,2*β^2*K,-β^2*K, α^2])
     return minimum(real(roots(p)[findall(real(roots(p)).== roots(p))]))
+end
+
+function bulk_min_(bulk_sat1::AbstractArray{T}, ϕ::AbstractArray{T}, α=T(2f-1)) where T
+    ## Equation 1.7 from quantitative book section 1.3
+    ## K_{\phi} = α * K_{mineral}
+    return (one(T) .+ ϕ ./ α) .* bulk_sat1
 end
