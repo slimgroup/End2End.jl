@@ -251,9 +251,8 @@ for j=1:niterations
     ## AD by Flux
     @time fval, gs = Flux.withgradient(() -> obj(dϕ), Flux.params(dϕ))
 
-    println("Inversion iteration no: ",j,"; function value: ", fhistory[j])
-
     fhistory[j] = fval
+    println("Inversion iteration no: ",j,"; function value: ", fhistory[j])
     g = gs[dϕ]
     p = -g/norm(g, Inf)
 
@@ -288,13 +287,13 @@ for j=1:niterations
     SNR = -2f1 * log10(norm(ϕ-ϕ_j)/norm(ϕ))
     fig = figure(figsize=(20,12));
     subplot(2,2,1);
-    imshow(ϕ_j', vmin=0, vmax=0.65);title("inversion, SNR=$(SNR)");colorbar();
+    imshow(ϕ_j', vmin=0, vmax=maximum(ϕ));title("inversion, SNR=$(SNR)");colorbar();
     subplot(2,2,2);
-    imshow(ϕ', vmin=0, vmax=0.65);title("GT permeability");colorbar();
+    imshow(ϕ', vmin=0, vmax=maximum(ϕ));title("GT permeability");colorbar();
     subplot(2,2,3);
-    imshow(ϕ_init', vmin=0, vmax=0.65);title("initial permeability");colorbar();
+    imshow(ϕ_init', vmin=0, vmax=maximum(ϕ));title("initial permeability");colorbar();
     subplot(2,2,4);
-    imshow(ϕ_j'-ϕ_init', vmin=-0.5, vmax=0.5, cmap="magma");title("updated");colorbar();
+    imshow(ϕ_j'-ϕ_init', vmin=-0.5*maximum(ϕ), vmax=0.5*maximum(ϕ), cmap="magma");title("updated");colorbar();
     suptitle("End-to-end Inversion at iter $(j)")
     tight_layout()
     safesave(joinpath(plotsdir(sim_name, exp_name), savename(fig_name; digits=6)*"_ϕ.png"), fig);
