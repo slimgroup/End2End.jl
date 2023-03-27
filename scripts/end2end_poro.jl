@@ -216,7 +216,8 @@ fhistory = zeros(niterations)
 
 #### inversion
 ϕ0 = deepcopy(ϕ)
-ϕ0[v.>3.5] .= 0.15
+ϕ_init_val = 0.13
+ϕ0[v.>3.5] .= ϕ_init_val
 ϕ0_init = deepcopy(ϕ0)
 dϕ = 0 .* ϕ
 ϕ_init = deepcopy(ϕ0)
@@ -273,7 +274,7 @@ for j=1:niterations
     global dϕ = dϕ + step * p
 
     ### save intermediate results
-    save_dict = @strdict mode j nssample f0 dϕ ϕ0 g niterations nv nsrc nrec nv cut_area tstep factor n d fhistory mask kvoverkh α
+    save_dict = @strdict ϕ_init_val mode j nssample f0 dϕ ϕ0 g niterations nv nsrc nrec nv cut_area tstep factor n d fhistory mask kvoverkh α
     @tagsave(
         joinpath(datadir(sim_name, exp_name), savename(save_dict, "jld2"; digits=6)),
         save_dict;
@@ -281,7 +282,7 @@ for j=1:niterations
     )
 
     ## save figure
-    fig_name = @strdict mode j nssample f0 dϕ ϕ0 niterations nv nsrc nrec nv cut_area tstep factor n d fhistory mask kvoverkh α
+    fig_name = @strdict ϕ_init_val mode j nssample f0 dϕ ϕ0 niterations nv nsrc nrec nv cut_area tstep factor n d fhistory mask kvoverkh α
 
     ## compute true and plot
     SNR = -2f1 * log10(norm(ϕ-ϕ_j)/norm(ϕ))
