@@ -66,11 +66,6 @@ opts = GlowOptions(; cl_activation=SigmoidNewLayer(0.5f0),
 G = Glow(1, network_dict["nc_hidden"], network_dict["depth"], network_dict["nscales"]; logdet=false, opt=opts) #|> gpu
 set_params!(G, Params);
 
-normal_min = network_dict["normal_min"]
-normal_max = network_dict["normal_max"]
-@. normal(x; normal_min=normal_min, normal_max=normal_max) = (x-normal_min)/(normal_max-normal_min)
-@. invnormal(x; normal_min=normal_min, normal_max=normal_max) = x*(normal_max-normal_min)+normal_min
-
 # check generative samples are good so that loading went well. 
 G.forward(randn(Float32,network_dict["nx"],network_dict["ny"],1,1));
 gen = invnormal(G.inverse(randn(Float32,network_dict["nx"],network_dict["ny"],1,1)));
@@ -94,38 +89,40 @@ v = 1.0./downsample(1.0./v, factor)
 ds = Float64.(d) .* factor;
 
 ns = (size(v,1), 1, size(v,2))
-ds = (ds[1], ds[1]*ns[1], ds[2])
+ds = (ds[1], ds[1]*ns[1]/5, ds[2])
 
 Kh = VtoK.(v);
 K = Float64.(Kh * md);
 
-n = ns
-d = ds
-
-ϕ = 0.25
-model = jutulModel(n, d, ϕ, K1to3(K; kvoverkh=0.1); h=h)
+# set up jutul model
+kvoverkh = 0.1
+α = 6.0
+ϕ = Ktoϕ.(Kh; α=α)
+model = jutulModel(ns, ds, vec(padϕ(ϕ)), K1to3(K; kvoverkh=kvoverkh), h)
 
 ## simulation time steppings
-tstep = 365.25 * 5 * ones(5)
+tstep = 365.25 * 12 * ones(5)
 tot_time = sum(tstep)
 
 ## injection & production
-inj_loc = (128, 1, ns[end]-20) .* ds
-pore_volumes = ϕ * sum(v.>3.5) * prod(ds)
+inj_loc = (128, 1) .* ds[1:2]
+startz = (ns[end]-18) * ds[end]
+endz = (ns[end]-16) * ds[end]
+pore_volumes = sum(ϕ[2:end-1,1:end-1] .* (v[2:end-1,1:end-1].>3.5)) * prod(ds)
 irate = 0.2 * pore_volumes / tot_time / 24 / 60 / 60
-#irate = 0.3
-f = jutulVWell(irate, (inj_loc[1], inj_loc[2]); startz = 46 * ds[end], endz = 48 * ds[end])
+
+f = jutulVWell(irate, inj_loc; startz = startz, endz = endz)
 
 ## set up modeling operator
 S = jutulModeling(model, tstep)
 
 ## simulation
 mesh = CartesianMesh(model)
-T(x) = log.(KtoTrans(mesh, K1to3(exp.(x); kvoverkh=0.1)))
+T(x) = log.(KtoTrans(mesh, K1to3(exp.(x); kvoverkh=kvoverkh)))
 
 logK = log.(K)
 
-@time state = S(T(logK), f)
+@time state = S(T(log.(ϕtoK.(ϕ;α=α)*md)),vec(padϕ(ϕ)),f)
 
 # Main loop
 niterations = 500
