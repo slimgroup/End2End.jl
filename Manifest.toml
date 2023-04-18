@@ -2,7 +2,7 @@
 
 julia_version = "1.8.5"
 manifest_format = "2.0"
-project_hash = "37421a69915a8b31f982216e5b4fa56ffc9229d9"
+project_hash = "098c8f27dde2a1d10895c02239bb1abdc690c277"
 
 [[deps.AMD]]
 deps = ["Libdl", "LinearAlgebra", "SparseArrays", "Test"]
@@ -1090,7 +1090,9 @@ version = "0.2.2"
 
 [[deps.JutulDarcy]]
 deps = ["AlgebraicMultigrid", "DataStructures", "Dates", "ForwardDiff", "Jutul", "Krylov", "LinearAlgebra", "LoopVectorization", "MAT", "MultiComponentFlash", "Polyester", "SnoopPrecompile", "SparseArrays", "StaticArrays", "Statistics", "TestItems", "TimerOutputs", "Tullio"]
-git-tree-sha1 = "52d483c23b44ec3e95ee1b23b0dfd14b19e365f6"
+git-tree-sha1 = "6cb9be4bebdddb19cda248c9aebaa6e8cd48c4b6"
+repo-rev = "v0.2.1-fix"
+repo-url = "https://github.com/ziyiyin97/JutulDarcy.jl.git"
 uuid = "82210473-ab04-4dce-b31b-11573c4f8e0a"
 version = "0.2.1"
 

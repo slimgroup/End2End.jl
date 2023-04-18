@@ -2,6 +2,7 @@ name = "jutul-compass"
 authors = ["Ziyi Yin"]
 
 [deps]
+ChainRulesCore = "d360d2e6-b24c-11e9-a2a3-2a2ae2dbcce4"
 DrWatson = "634d3b9d-ee7a-5ddf-bec9-22491ea816e1"
 FFTW = "7a1cc6ca-52ef-59f5-83cd-3a7055c09341"
 FNO4CO2 = "4f87af30-b322-4a0d-8c7c-fe8b2256665a"

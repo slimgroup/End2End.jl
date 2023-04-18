@@ -20,13 +20,13 @@ using PyPlot
 using Flux
 using LineSearches
 using JLD2
-using JUDI
 using Statistics
 using InvertibleNetworks
 using GlowInvertibleNetwork
 using Random
 using Images
 using JSON
+using Polynomials
 
 device = gpu
 
@@ -68,7 +68,7 @@ set_params!(G, Params);
 
 # check generative samples are good so that loading went well. 
 G.forward(randn(Float32,network_dict["nx"],network_dict["ny"],1,1));
-gen = invnormal(G.inverse(randn(Float32,network_dict["nx"],network_dict["ny"],1,1)));
+gen = G.inverse(randn(Float32,network_dict["nx"],network_dict["ny"],1,1));
 
 # generator now
 G = G |> device;
@@ -122,30 +122,39 @@ T(x) = log.(KtoTrans(mesh, K1to3(exp.(x); kvoverkh=kvoverkh)))
 
 logK = log.(K)
 
-@time state = S(T(log.(ϕtoK.(ϕ;α=α)*md)),vec(padϕ(ϕ)),f)
-
+F(ϕ) = S(T(log.(ϕtoK.(ϕ;α=α)*md)),vec(padϕ(ϕ)),f)
+@time state = F(ϕ)
 # Main loop
 niterations = 500
 fhistory = zeros(niterations)
 
-### inversion initialization
-logK0 = deepcopy(logK)
-logK0[v.>3.5] .= mean(logK[v.>3.5])
+#### inversion
+ϕ0 = deepcopy(ϕ)
+ϕ_init_val = mean(ϕ0[v.>3.5])
+ϕ0[v.>3.5] .= ϕ_init_val
+ϕ0_init = deepcopy(ϕ0)
+dϕ = 0 .* ϕ
+ϕ_init = deepcopy(ϕ0)
+
+logK0 = log.(ϕtoK.(ϕ0;α=α)*md)
 logK_init = deepcopy(logK0)
+@time y_init = F(ϕ0)
 
-z = G.inverse(Float32.(normal(reshape(Float32.(logK0), ns[1], ns[end], 1, 1))) |> device)
-λ = 1f0
+z = G.inverse(Float32.(reshape(ϕ0, ns[1], ns[end], 1, 1)) |> device)
+z = 0.8f0 * z/norm(z) * Float32(sqrt(length(z)))
+λ = 0f0
 
-ctrue = state[1:length(tstep)*prod(n)]
-init_misfit = norm(S(T(box_logK(invnormal(Float64.(G(z)|>cpu)[:,:,1,1]))), f)[1:length(tstep)*prod(n)]-ctrue)^2
+ctrue = state[1:length(tstep)*prod(ns)]
+init_misfit = norm(F(ϕ0)[1:length(tstep)*prod(ns)]-ctrue)^2
+
 function obj(z)
-    global logK_j = box_logK(invnormal(Float64.(G(z)|>cpu)[:,:,1,1]))
-    global c_j = S(T(logK_j), f)
-    return .5 * norm(c_j[1:length(tstep)*prod(n)]-ctrue)^2/init_misfit + .5f0 * λ^2f0 * norm(z)^2f0/length(z) 
+    global ϕ_j = box_ϕ(Float64.(G(z)|>cpu)[:,:,1,1])
+    global c_j = F(ϕ_j)
+    return .5 * norm(c_j[1:length(tstep)*prod(ns)]-ctrue)^2 + .5f0 * λ^2f0 * norm(z)^2f0/length(z) 
 end
 
-logK_init = box_logK(invnormal(Float64.(G(z)|>cpu)[:,:,1,1]))
-@time state_init = S(T(logK_init), f)
+ϕ_init = box_ϕ(Float64.(G(z)|>cpu)[:,:,1,1])
+@time state_init = F(ϕ_init)
 
 ls = BackTracking(order=3, iterations=10)
 
@@ -158,45 +167,52 @@ for j=1:niterations
 
     # linesearch
     function f_(α)
-        misfit = obj(Float32.(z + α * p))
-        @show α, misfit
-        return misfit
+        try
+            misfit = obj(Float32.(z + α * p))
+            @show α, misfit
+            return misfit
+        catch e
+            return Inf
+        end
     end
 
-    step, fval = ls(f_, 100.0, fval, dot(g, p))
+    step, fval = ls(f_, 2f-2, fval, dot(g, p))
     global z = Float32.(z + step * p)
     
     println("Inversion iteration no: ",j,"; function value: ",fval)
 
-    fig_name = @strdict j n d ϕ z tstep irate niterations inj_loc λ
+    fig_name = @strdict α ϕ_init_val j n d ϕ z tstep irate niterations inj_loc λ
 
-    ### plotting
-    fig=figure(figsize=(20,12));
-    subplot(1,3,1);
-    imshow(exp.(logK)'./md, norm=matplotlib.colors.LogNorm(vmin=200, vmax=maximum(exp.(logK)./md))); colorbar(); title("true permeability")
-    subplot(1,3,2);
-    imshow(exp.(logK_j)'./md, norm=matplotlib.colors.LogNorm(vmin=200, vmax=maximum(exp.(logK)./md))); colorbar(); title("inverted permeability")
-    subplot(1,3,3);
-    imshow(abs.(exp.(logK)'./md.-exp.(logK_j)'./md), norm=matplotlib.colors.LogNorm(vmin=200, vmax=maximum(exp.(logK)./md))); colorbar(); title("diff")
-    suptitle("Flow Inversion at iter $j")
+    ## compute true and plot
+    SNR = -2f1 * log10(norm(ϕ-ϕ_j)/norm(ϕ))
+    fig = figure(figsize=(20,12));
+    subplot(2,2,1);
+    imshow(ϕ_j', vmin=0, vmax=maximum(ϕ));title("inversion, SNR=$(SNR)");colorbar();
+    subplot(2,2,2);
+    imshow(ϕ', vmin=0, vmax=maximum(ϕ));title("GT permeability");colorbar();
+    subplot(2,2,3);
+    imshow(ϕ_init', vmin=0, vmax=maximum(ϕ));title("initial permeability");colorbar();
+    subplot(2,2,4);
+    imshow(ϕ_j'-ϕ_init', vmin=-0.5*maximum(ϕ), vmax=0.5*maximum(ϕ), cmap="magma");title("updated");colorbar();
+    suptitle("Inversion at iter $(j)")
     tight_layout()
-    safesave(joinpath(plotsdir(sim_name, exp_name), savename(fig_name; digits=6)*"_diff.png"), fig);
+    safesave(joinpath(plotsdir(sim_name, exp_name), savename(fig_name; digits=6)*"_ϕ.png"), fig);
     close(fig)
-
+ 
     ## data fitting
     fig = figure(figsize=(20,12));
     for i = 1:5
         subplot(4,5,i);
-        imshow(reshape(Saturations(state_init.states[i]), n[1], n[end])', vmin=0, vmax=0.9); colorbar();
+        imshow(reshape(Saturations(state_init.states[i]), ns[1], ns[end])', vmin=0, vmax=0.9); colorbar();
         title("initial prediction at snapshot $(i)")
         subplot(4,5,i+5);
-        imshow(reshape(Saturations(state.states[i]), n[1], n[end])', vmin=0, vmax=0.9); colorbar();
+        imshow(reshape(Saturations(state.states[i]), ns[1], ns[end])', vmin=0, vmax=0.9); colorbar();
         title("true at snapshot $(i)")
         subplot(4,5,i+10);
-        imshow(reshape(Saturations(c_j.states[i]), n[1], n[end])', vmin=0, vmax=0.9); colorbar();
+        imshow(reshape(Saturations(c_j.states[i]), ns[1], ns[end])', vmin=0, vmax=0.9); colorbar();
         title("predict at snapshot $(i)")
         subplot(4,5,i+15);
-        imshow(5*abs.(reshape(Saturations(state.states[i]), n[1], n[end])'-reshape(Saturations(c_j.states[i]), n[1], n[end])'), vmin=0, vmax=0.9); colorbar();
+        imshow(5*abs.(reshape(Saturations(state.states[i]), ns[1], ns[end])'-reshape(Saturations(c_j.states[i]), ns[1], ns[end])'), vmin=0, vmax=0.9); colorbar();
         title("5X diff at snapshot $(i)")
     end
     suptitle("Flow Inversion at iter $j")
